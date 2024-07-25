@@ -5,17 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7871785f-ca47-4f39-85c2-6ba55339e062" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf-tool" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/main.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/pbss-mpt.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/runner.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/statedb.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/util.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/perf/versa-mpt.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/perf/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/perf/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/perf/pbss-mpt.go" beforeDir="false" afterPath="$PROJECT_DIR$/perf/pbss-mpt.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +11,8 @@ import (
 )
 
 const (
-	PBSSEngine = "mpt-pbss"
+	PBSSEngine    = "pbss-mpt"
+	VERSADBEngine = "versa-mpt"
 )
 
 // PerfConfig struct to hold command line arguments
@@ -72,7 +72,7 @@ func main() {
 			&cli.IntFlag{
 				Name:        "threads",
 				Aliases:     []string{"t"},
-				Usage:       "Number of jobs",
+				Usage:       "Number of threads",
 				Value:       10,
 				Destination: &config.NumJobs,
 			},
@@ -124,7 +124,7 @@ func run(c *cli.Context) error {
 	if engine == PBSSEngine {
 		fmt.Println("start to test", PBSSEngine)
 		dir, _ := os.Getwd()
-		stateDB = OpenDB(filepath.Join(dir, "testdir"), types.EmptyRootHash)
+		stateDB = OpenPbssDB(filepath.Join(dir, "testdir"), types.EmptyRootHash)
 		batchSize := c.Int64("bs")
 		jobNum := c.Int("threads")
 		keyRange := c.Uint64("key_range")
@@ -137,64 +137,4 @@ func run(c *cli.Context) error {
 		runner.Run()
 	}
 	return nil
-}
-
-/*
-	func run(numThreads int) {
-		taskCh := make(chan []byte, 1800)
-		var wg sync.WaitGroup
-		var completedTasks int64
-
-		atomic.StoreInt64(&completedTasks, 0)
-		for i := 0; i < numThreads; i++ {
-			wg.Add(1)
-			go worker(db, taskCh, &wg, &completedTasks)
-		}
-
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				atomic.StoreInt64(&completedTasks, 0)
-				for i := 0; i < 1800; i++ {
-					taskCh <- generateRandomKey()
-				}
-				// Wait for the batch to complete
-				time.Sleep(3 * time.Second)
-				// Print progress
-				fmt.Printf("Completed %d out of 1800 tasks\n", atomic.LoadInt64(&completedTasks))
-			}
-		}
-	}
-
-	func worker(db TrieDatabase, taskCh <-chan []byte, wg *sync.WaitGroup, completedTasks *int64) {
-		defer wg.Done()
-		for key := range taskCh {
-			value := generateRandomValue()
-			err := db.Put(key, value)
-			if err != nil {
-				log.Printf("Error putting key: %v", err)
-			}
-		}
-		atomic.AddInt64(completedTasks, 1)
-	}
-*/
-func generateRandomKey() []byte {
-	key := make([]byte, 32)
-	_, err := rand.Read(key)
-	if err != nil {
-		log.Fatal("Error generating random key:", err)
-	}
-	return key
-}
-
-func generateRandomValue() []byte {
-	value := make([]byte, 64)
-	_, err := rand.Read(value)
-	if err != nil {
-		log.Fatal("Error generating random value:", err)
-	}
-	return value
 }

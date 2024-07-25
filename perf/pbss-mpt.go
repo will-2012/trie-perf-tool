@@ -20,7 +20,7 @@ type PbssTrie struct {
 	nodes *trienode.MergedNodeSet
 }
 
-func (p *PbssTrie) OpenDB(dataDir string, root common.Hash) *PbssTrie {
+func OpenPbssDB(dataDir string, root common.Hash) *PbssTrie {
 	triedb, _ := MakePBSSTrieDatabase(dataDir)
 
 	t, err := bsctrie.New(bsctrie.StateTrieID(root), triedb)
