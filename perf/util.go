@@ -100,10 +100,6 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 			root  = types.EmptyRootHash
 			code  = crypto.Keccak256(nil)
 		)
-		// The big.Rand function is not deterministic with regards to 64 vs 32 bit systems,
-		// and will consume different amount of data from the rand source.
-		//balance = new(big.Int).Rand(random, new(big.Int).Exp(common.Big2, common.Big256, nil))
-		// Therefore, we instead just read via byte buffer
 		numBytes := random.Uint32() % 33 // [0, 32] bytes
 		balanceBytes := make([]byte, numBytes)
 		random.Read(balanceBytes)
@@ -118,6 +114,16 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 func randomFloat() float64 {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Float64()
+}
+
+func generateValue(minSize, maxSize uint64) []byte {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	size := minSize + uint64(rand.Intn(int(maxSize-minSize+1)))
+	b := make([]byte, size)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return b
 }
 
 type InsertedKeySet struct {

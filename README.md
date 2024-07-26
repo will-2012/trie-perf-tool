@@ -37,5 +37,9 @@ Options:
 the result shown below:
 
 ```bash
-$ ./build/perftool -engine pbss-mpt -b 1000 -threads 1 put
+// press test for pbss-mpt 
+$ ./build/perftool -engine pbss-mpt -b 1000 -dr 0.1 -threads 1 press-test 
+
+// verify the root hash of versa-mpt and pbss-mpt
+$ ./build/perftool -b 100  -dr 0 compare-hash
 ```

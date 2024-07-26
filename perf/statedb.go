@@ -10,10 +10,12 @@ type TrieDatabase interface {
 	Get(key []byte) ([]byte, error)
 
 	Delete(key []byte) error
-	//PutBatch(batch *TrieBatch) []error
+
 	Commit() (common.Hash, error)
 
 	Hash() common.Hash
+
+	GetMPTEngine() string
 }
 
 type TrieBatch interface {

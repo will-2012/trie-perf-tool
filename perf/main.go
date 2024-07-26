@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	PBSSEngine    = "pbss-mpt"
-	VERSADBEngine = "versa-mpt"
+	PbssRawTrieEngine = "pbss-mpt"
+	VERSADBEngine     = "versa-mpt"
+	StateTrieEngine   = "secure-trie"
 )
 
 // PerfConfig struct to hold command line arguments
@@ -29,7 +30,7 @@ type PerfConfig struct {
 
 const version = "1.0.0"
 
-// Run is the function to run the bsperftool command line tool
+// Run is the function to runPerf the bsperftool command line tool
 func main() {
 	var config PerfConfig
 
@@ -39,21 +40,29 @@ func main() {
 		Version: version,
 		Commands: []*cli.Command{
 			{
-				Name:  "put",
-				Usage: "Put random keys into the trie database",
+				Name:  "press",
+				Usage: "Press random keys into the trie database",
 				Action: func(c *cli.Context) error {
-					run(c)
+					runPerf(c)
+					return nil
+				},
+			},
+			{
+				Name:  "compare-hash",
+				Usage: "verify hash root of trie database by comparing",
+				Action: func(c *cli.Context) error {
+					verifyHash(c)
 					return nil
 				},
 			},
 		},
+
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "engine",
 				Aliases:     []string{"e"},
-				Usage:       "Engine to use",
+				Usage:       "Engine to use, engine can be pbss-mpt,versa-mpt or secure-trie",
 				Destination: &config.Engine,
-				Required:    true,
 			},
 			&cli.StringFlag{
 				Name:        "datadir",
@@ -101,7 +110,7 @@ func main() {
 				Name:        "delete_ratio",
 				Aliases:     []string{"dr"},
 				Usage:       "Delete ratio",
-				Value:       0.3,
+				Value:       0,
 				Destination: &config.DeleteRatio,
 			},
 		},
@@ -117,24 +126,65 @@ func main() {
 	}
 }
 
-func run(c *cli.Context) error {
-
+func runPerf(c *cli.Context) error {
 	var stateDB TrieDatabase
 	engine := c.String("engine")
-	if engine == PBSSEngine {
-		fmt.Println("start to test", PBSSEngine)
+	if engine == PbssRawTrieEngine {
+		fmt.Println("start to test", PbssRawTrieEngine)
 		dir, _ := os.Getwd()
-		stateDB = OpenPbssDB(filepath.Join(dir, "testdir"), types.EmptyRootHash)
-		batchSize := c.Int64("bs")
-		jobNum := c.Int("threads")
-		keyRange := c.Uint64("key_range")
-		maxValueSize := c.Uint64("max_value_size")
-		minValueSize := c.Uint64("min_value_size")
-		deleteRatio := c.Float64("delete_ratio")
-
-		runner := NewRunner(stateDB, uint64(batchSize), jobNum, keyRange, minValueSize, maxValueSize, deleteRatio, 10)
+		stateDB = OpenPbssDB(filepath.Join(dir, "pbss-dir"), types.EmptyRootHash)
+		runner := NewRunner(stateDB, parsePerfConfig(c), 100)
 		fmt.Println("begin to press test")
 		runner.Run()
 	}
 	return nil
+}
+
+func verifyHash(c *cli.Context) error {
+	dir, _ := os.Getwd()
+	secureTrie := OpenStateTrie(filepath.Join(dir, "pbss-dir"), types.EmptyRootHash)
+	versaTrie := OpenVersaTrie(0, nil)
+
+	vals := []struct{ k, v string }{
+		{"do", "verb"},
+		{"ether", "wookiedoo"},
+		{"horse", "stallion"},
+		{"shaman", "horse"},
+		{"doge", "coin"},
+		{"dog", "puppy"},
+	}
+
+	for _, val := range vals {
+		secureTrie.Put([]byte(val.k), []byte(val.v))
+		versaTrie.Put([]byte(val.k), []byte(val.v))
+	}
+	hash1 := versaTrie.Hash()
+	hash2, _ := secureTrie.Commit()
+	if hash1 != hash2 {
+		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
+			hash2, hash1)
+		panic("basic test fail")
+	} else {
+		fmt.Println("basic test succ")
+	}
+	verifyer := NewVerifyer(secureTrie, versaTrie, parsePerfConfig(c), 10)
+	verifyer.Run()
+	return nil
+}
+
+func parsePerfConfig(c *cli.Context) PerfConfig {
+	batchSize := c.Uint64("bs")
+	threadNum := c.Int("threads")
+	keyRange := c.Uint64("key_range")
+	maxValueSize := c.Uint64("max_value_size")
+	minValueSize := c.Uint64("min_value_size")
+	deleteRatio := c.Float64("delete_ratio")
+	return PerfConfig{
+		BatchSize:    batchSize,
+		NumJobs:      threadNum,
+		KeyRange:     keyRange,
+		MinValueSize: minValueSize,
+		MaxValueSize: maxValueSize,
+		DeleteRatio:  deleteRatio,
+	}
 }

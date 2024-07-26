@@ -5,15 +5,14 @@ import (
 	versa_tree "versioned-state-database/tree"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type VersaTrie struct {
 	trie versa_tree.Tree
 }
 
-func (p *VersaTrie) OpenDB(dataDir string, root common.Hash) *VersaTrie {
-	t := versa_tree.OpenTree(common.Hash{}, 0, nil, false, store.NewStore())
+func OpenVersaTrie(version uint64, rootHash []byte) *VersaTrie {
+	t := versa_tree.OpenTree(common.Hash{}, version, rootHash, false, store.NewStore())
 	return &VersaTrie{
 		trie: t,
 	}
@@ -24,9 +23,6 @@ func (p *VersaTrie) Hash() common.Hash {
 }
 
 func (p *VersaTrie) Put(key []byte, value []byte) error {
-	if len(value) == 0 {
-		panic("should not insert empty value")
-	}
 	return p.trie.Insert(key, value)
 }
 
@@ -38,8 +34,11 @@ func (p *VersaTrie) Delete(key []byte) error {
 	return p.trie.Delete(key)
 }
 
-func (p *VersaTrie) Commit(version uint64) (common.Hash, error) {
-	//	hash, _, err := p.trie.Commit(version)
+func (p *VersaTrie) Commit() (common.Hash, error) {
+	hash, _, _, err := p.trie.Commit(0)
+	return hash, err
+}
 
-	return types.EmptyCodeHash, nil
+func (p *VersaTrie) GetMPTEngine() string {
+	return VERSADBEngine
 }
