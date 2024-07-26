@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -19,6 +18,7 @@ type TrieVerifyer struct {
 	blockHeight  uint64
 	successBatch uint64
 	failBatch    uint64
+	keyCache     *InsertedKeySet
 }
 
 func NewVerifyer(
@@ -32,6 +32,7 @@ func NewVerifyer(
 		baseDB:     baseDB,
 		perfConfig: config,
 		taskChan:   make(chan map[string][]byte, taskBufferSize),
+		keyCache:   NewFixedSizeSet(1000000),
 	}
 	return verifyer
 }
@@ -73,8 +74,7 @@ func (v *TrieVerifyer) generateTasks(running *atomic.Bool) {
 }
 
 func (v *TrieVerifyer) compareHashRoot(taskInfo map[string][]byte) {
-	expectRoot := v.getRootHash(v.baseDB, taskInfo)
-	verifyRoot := v.getRootHash(v.verifyDB, taskInfo)
+	expectRoot, verifyRoot := v.getRootHash(taskInfo)
 	v.blockHeight++
 	if expectRoot != verifyRoot {
 		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
@@ -86,31 +86,46 @@ func (v *TrieVerifyer) compareHashRoot(taskInfo map[string][]byte) {
 	}
 }
 
-func (v *TrieVerifyer) getRootHash(db TrieDatabase, taskInfo map[string][]byte) common.Hash {
+func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, common.Hash) {
 	// simulate insert and delete trie
 	for key, value := range taskInfo {
 		keyName := []byte(key)
-		if randomFloat() > v.perfConfig.DeleteRatio {
-			err := db.Put(keyName, value)
-			if err != nil {
-				fmt.Println("fail to insert key to trie", "key", string(keyName),
-					"err", err.Error())
-			}
-		} else {
-			err := db.Delete(keyName)
-			if err != nil {
-				fmt.Println("fail to delete key to trie", "key", string(keyName),
-					"err", err.Error())
+		err := v.baseDB.Put(keyName, value)
+		if err != nil {
+			fmt.Println("fail to insert key to trie", "key", string(keyName),
+				"err", err.Error())
+		}
+		err = v.verifyDB.Put(keyName, value)
+		if err != nil {
+			fmt.Println("fail to insert key to trie", "key", string(keyName),
+				"err", err.Error())
+		}
+		v.keyCache.Add(key)
+
+		if randomFloat() < v.perfConfig.DeleteRatio {
+			// delete the key from inserted key cache
+			randomKey, found := v.keyCache.RandomItem()
+			if found {
+				keyName = []byte(randomKey)
+				err = v.baseDB.Delete(keyName)
+				if err != nil {
+					fmt.Println("fail to delete key to trie", "key", string(keyName),
+						"err", err.Error())
+				}
+				err = v.verifyDB.Delete(keyName)
+				if err != nil {
+					fmt.Println("fail to delete key to trie", "key", string(keyName),
+						"err", err.Error())
+				}
 			}
 		}
 	}
-	var hashRoot common.Hash
-	if db.GetMPTEngine() == StateTrieEngine {
-		hashRoot, _ = db.Commit()
-	} else if db.GetMPTEngine() == VERSADBEngine {
-		hashRoot = db.Hash()
-	} else {
-		hashRoot = types.EmptyRootHash
+
+	baseRoot, err := v.baseDB.Commit()
+	if err != nil {
+		panic("state trie commit error")
 	}
-	return hashRoot
+	verifyRoot := v.verifyDB.Hash()
+
+	return baseRoot, verifyRoot
 }
