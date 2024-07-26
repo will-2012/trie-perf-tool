@@ -73,5 +73,5 @@ replace (
 	github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
 	github.com/syndtr/goleveldb v1.0.1 => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.16
-	versioned-state-database => github.com/bnb-chain/versioned-state-database v0.0.0-20240725091145-1803fae21b3a
+	versioned-state-database => github.com/bnb-chain/versioned-state-database v0.0.0-20240726032157-8d1278b53272
 )

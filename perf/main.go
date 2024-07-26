@@ -155,7 +155,7 @@ func runPerf(c *cli.Context) error {
 
 func verifyHash(c *cli.Context) error {
 	dir, _ := os.Getwd()
-	secureTrie := OpenStateTrie(filepath.Join(dir, "pbss-dir"), types.EmptyRootHash)
+	secureTrie := OpenStateTrie(filepath.Join(dir, "test-dir"), types.EmptyRootHash)
 	versaTrie := OpenVersaTrie(0, nil)
 
 	vals := []struct{ k, v string }{
@@ -178,6 +178,7 @@ func verifyHash(c *cli.Context) error {
 			hash2, hash1)
 		panic("basic test fail")
 	}
+
 	verifyer := NewVerifyer(secureTrie, versaTrie, parsePerfConfig(c), 10)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()

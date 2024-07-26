@@ -43,7 +43,7 @@ init trie finish, begin to press kv
 
 // verify the root hash of versa-mpt and pbss-mpt, run time is 1 minute
 
-$ ./build/perftool -b 100  -dr 0 -runtime 1m verify-hash
+$ ./build/perftool -b 100  -dr 0.2 -runtime 1m verify-hash
 begin to verify root hash, the batch size of block is 100
 [2024-07-26T12:41:40.731314+08:00] verify In Progress, finish compare block 1355
 [2024-07-26T12:41:43.735671+08:00] verify In Progress, finish compare block 2747
