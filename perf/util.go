@@ -84,13 +84,14 @@ func (s *Stat) IncDelete(num uint64) {
 }
 
 func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
-	// Make the random benchmark deterministic
 	random := rand.New(rand.NewSource(0))
 	// Create a realistic account trie to hash
 	addresses = make([][20]byte, size)
 	for i := 0; i < len(addresses); i++ {
 		data := make([]byte, 20)
 		random.Read(data)
+		rand.Seed(time.Now().UnixNano())
+		rand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
 		copy(addresses[i][:], data)
 	}
 	accounts = make([][]byte, len(addresses))

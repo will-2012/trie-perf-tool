@@ -1,11 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -15,11 +13,13 @@ type Runner struct {
 	db              TrieDatabase
 	perfConfig      PerfConfig
 	stat            *Stat
-	lastStatTime    sync.Mutex
 	lastStatInstant time.Time
 	taskChan        chan map[string][]byte
 	keyCache        *InsertedKeySet
 	blockHeight     uint64
+	rwDuration      time.Duration
+	commitDuration  time.Duration
+	hashDuration    time.Duration
 }
 
 func NewRunner(
@@ -39,86 +39,81 @@ func NewRunner(
 	return runner
 }
 
-func (r *Runner) Run() {
-	running := &atomic.Bool{}
-	running.Store(true)
-
-	// Listen for Ctrl+C signal
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt)
-		<-ch
-		running.Store(false)
-	}()
-
+func (r *Runner) Run(ctx context.Context) {
+	defer close(r.taskChan)
 	// Start task generation thread
-	go r.generateTasks(running)
+	go generateTasks(ctx, r.taskChan, r.perfConfig.BatchSize)
 
 	// init the trie key
 	r.InitTrie()
-	fmt.Println("init trie finish")
-	// Execute the function in an infinite loop until Ctrl+C signal is received
-	for running.Load() {
-		//for i := 0; i < 1; i++ {
-		r.runInternal()
-	}
+
+	fmt.Println("init trie finish, begin to press kv")
+	r.runInternal(ctx)
 }
 
-func (r *Runner) generateTasks(running *atomic.Bool) {
-	for running.Load() {
-		taskMap := make(map[string][]byte)
-		address, acccounts := makeAccounts(int(r.perfConfig.BatchSize))
-		for i := 0; i < len(address); i++ {
-			taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
+func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batchSize uint64) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			taskMap := make(map[string][]byte, batchSize)
+			address, acccounts := makeAccounts(int(batchSize))
+			for i := 0; i < len(address); i++ {
+				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
+			}
+			taskChan <- taskMap
 		}
-		r.taskChan <- taskMap
 	}
 }
 
-func (r *Runner) runInternal() {
-	rwStart := time.Now()
+func (r *Runner) runInternal(ctx context.Context) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
 
-	taskInfo := <-r.taskChan
-	r.UpdateTrie(taskInfo)
-	rwDuration := time.Since(rwStart)
+	for {
+		select {
+		case taskInfo := <-r.taskChan:
+			rwStart := time.Now()
+			// read, put or delete keys
+			r.UpdateTrie(taskInfo)
+			r.rwDuration = time.Since(rwStart)
 
-	// compute hash
-	hashStart := time.Now()
-	r.db.Hash()
-	hashDuration := time.Since(hashStart)
+			// compute hash
+			hashStart := time.Now()
+			r.db.Hash()
+			r.hashDuration = time.Since(hashStart)
 
-	// commit
-	commitStart := time.Now()
-	if _, err := r.db.Commit(); err != nil {
-		panic("failed to commit: " + err.Error())
+			// commit
+			commitStart := time.Now()
+			if _, err := r.db.Commit(); err != nil {
+				panic("failed to commit: " + err.Error())
+			}
+			r.blockHeight++
+			r.commitDuration = time.Since(commitStart)
+
+		case <-ticker.C:
+			r.printStat()
+
+		case <-ctx.Done():
+			fmt.Println("Shutting down")
+			return
+		}
 	}
-	r.blockHeight++
-	commitDuration := time.Since(commitStart)
+}
 
-	// Notify task consumption complete
-	select {
-	case r.taskChan <- nil:
-	default:
-	}
-
-	totalDuration := time.Since(rwStart)
-	// print stat
-	r.lastStatTime.Lock()
+func (r *Runner) printStat() {
 	delta := time.Since(r.lastStatInstant)
-	if delta >= 3*time.Second {
-		fmt.Printf(
-			"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v, commit=%v, cal hash=%v, total cost=%v]\n",
-			time.Now().Format(time.RFC3339Nano),
-			r.stat.CalcTpsAndOutput(delta),
-			r.blockHeight,
-			rwDuration,
-			commitDuration,
-			hashDuration,
-			totalDuration,
-		)
-		r.lastStatInstant = time.Now()
-	}
-	r.lastStatTime.Unlock()
+	fmt.Printf(
+		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v, commit=%v, cal hash=%v]\n",
+		time.Now().Format(time.RFC3339Nano),
+		r.stat.CalcTpsAndOutput(delta),
+		r.blockHeight,
+		r.rwDuration,
+		r.commitDuration,
+		r.hashDuration,
+	)
+	r.lastStatInstant = time.Now()
 }
 
 func (r *Runner) InitTrie() {

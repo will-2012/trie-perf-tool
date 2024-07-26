@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -12,11 +12,13 @@ import (
 )
 
 type TrieVerifyer struct {
-	verifyDB    TrieDatabase
-	baseDB      TrieDatabase
-	perfConfig  PerfConfig
-	taskChan    chan map[string][]byte
-	blockHeight uint64
+	verifyDB     TrieDatabase
+	baseDB       TrieDatabase
+	perfConfig   PerfConfig
+	taskChan     chan map[string][]byte
+	blockHeight  uint64
+	successBatch uint64
+	failBatch    uint64
 }
 
 func NewVerifyer(
@@ -34,34 +36,28 @@ func NewVerifyer(
 	return verifyer
 }
 
-func (v *TrieVerifyer) Run() {
-	running := &atomic.Bool{}
-	running.Store(true)
-
-	// Listen for Ctrl+C signal
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt)
-		<-ch
-		running.Store(false)
-	}()
-
+func (v *TrieVerifyer) Run(ctx context.Context) {
+	defer close(v.taskChan)
 	// Start task generation thread
-	go v.generateTasks(running)
+	go generateTasks(ctx, v.taskChan, v.perfConfig.BatchSize)
 
-	// Execute the function in an infinite loop until Ctrl+C signal is received
-	for running.Load() {
-		v.verify()
-	}
-}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
 
-func (v *TrieVerifyer) verify() {
-	taskInfo := <-v.taskChan
-	v.compareHashRoot(taskInfo)
-	// Notify task consumption complete
-	select {
-	case v.taskChan <- nil:
-	default:
+	for {
+		select {
+		case taskInfo := <-v.taskChan:
+			v.compareHashRoot(taskInfo)
+		case <-ticker.C:
+			fmt.Printf(
+				"[%s] verify In Progress, finish compare block %d \n",
+				time.Now().Format(time.RFC3339Nano),
+				v.successBatch)
+
+		case <-ctx.Done():
+			fmt.Println("Shutting down")
+			return
+		}
 	}
 }
 
@@ -79,13 +75,14 @@ func (v *TrieVerifyer) generateTasks(running *atomic.Bool) {
 func (v *TrieVerifyer) compareHashRoot(taskInfo map[string][]byte) {
 	expectRoot := v.getRootHash(v.baseDB, taskInfo)
 	verifyRoot := v.getRootHash(v.verifyDB, taskInfo)
-
+	v.blockHeight++
 	if expectRoot != verifyRoot {
 		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
 			expectRoot, verifyRoot)
+		v.failBatch++
 		panic("unexpect compare hash root")
 	} else {
-		fmt.Println("compare hash root same")
+		v.successBatch++
 	}
 }
 

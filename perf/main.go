@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/urfave/cli/v2"
@@ -40,7 +42,7 @@ func main() {
 		Version: version,
 		Commands: []*cli.Command{
 			{
-				Name:  "press",
+				Name:  "press-test",
 				Usage: "Press random keys into the trie database",
 				Action: func(c *cli.Context) error {
 					runPerf(c)
@@ -48,7 +50,7 @@ func main() {
 				},
 			},
 			{
-				Name:  "compare-hash",
+				Name:  "verify-hash",
 				Usage: "verify hash root of trie database by comparing",
 				Action: func(c *cli.Context) error {
 					verifyHash(c)
@@ -75,7 +77,7 @@ func main() {
 				Name:        "bs",
 				Aliases:     []string{"b"},
 				Usage:       "Batch size",
-				Value:       3000,
+				Value:       1000,
 				Destination: &config.BatchSize,
 			},
 			&cli.IntFlag{
@@ -113,6 +115,12 @@ func main() {
 				Value:       0,
 				Destination: &config.DeleteRatio,
 			},
+			&cli.DurationFlag{
+				Name:    "runtime",
+				Aliases: []string{"rt"},
+				Value:   100 * time.Second,
+				Usage:   "Duration to run the benchmark",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			fmt.Printf("Running with config: %+v\n", config)
@@ -130,13 +138,18 @@ func runPerf(c *cli.Context) error {
 	var stateDB TrieDatabase
 	engine := c.String("engine")
 	if engine == PbssRawTrieEngine {
-		fmt.Println("start to test", PbssRawTrieEngine)
+		fmt.Println("start to test trie:", PbssRawTrieEngine)
 		dir, _ := os.Getwd()
 		stateDB = OpenPbssDB(filepath.Join(dir, "pbss-dir"), types.EmptyRootHash)
-		runner := NewRunner(stateDB, parsePerfConfig(c), 100)
-		fmt.Println("begin to press test")
-		runner.Run()
+	} else if engine == VERSADBEngine {
+		fmt.Println("start to test trie:", VERSADBEngine)
+		stateDB = OpenVersaTrie(0, nil)
 	}
+	runner := NewRunner(stateDB, parsePerfConfig(c), 100)
+	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
+	defer cancel()
+
+	runner.Run(ctx)
 	return nil
 }
 
@@ -164,11 +177,12 @@ func verifyHash(c *cli.Context) error {
 		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
 			hash2, hash1)
 		panic("basic test fail")
-	} else {
-		fmt.Println("basic test succ")
 	}
 	verifyer := NewVerifyer(secureTrie, versaTrie, parsePerfConfig(c), 10)
-	verifyer.Run()
+	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
+	defer cancel()
+	fmt.Println("begin to verify root hash, the batch size of block is", verifyer.perfConfig.BatchSize)
+	verifyer.Run(ctx)
 	return nil
 }
 
