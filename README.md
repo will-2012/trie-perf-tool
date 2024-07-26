@@ -10,29 +10,24 @@ make
 
 ```bash
 $ ./build/perftool -h       
-Usage: bsperftool [OPTIONS] --engine <ENGINE>
+COMMANDS:
+   press-test   Press random keys into the trie database
+   verify-hash  verify hash root of trie database by comparing
+   help, h      Shows a list of commands or help for one command
 
-Options:
-  -e, --engine <ENGINE>                  
-  -d, --datadir <DATADIR>                [default: ./dataset]
-  -b, --bs <BATCH_SIZE>                  [default: 1000]
-  -t, --threads <THREAD>              [default: 10]
-  -m, --min_value_size <MIN_VALUE_SIZE>  [default: 300]
-  -M, --max_value_size <MAX_VALUE_SIZE>  [default: 300]
-  -d, --delete_ratio <DELETE_RATIO>      [default: 0.2]
-  -h, --help                             Print help
-  -V, --version                          Print version
+GLOBAL OPTIONS:
+   --engine value, -e value          Engine to use, engine can be pbss-mpt,versa-mpt or secure-trie
+   --datadir value, -d value         Data directory (default: "./dataset")
+   --bs value, -b value              Batch size (default: 1000)
+   --threads value, -t value         Number of threads (default: 10)
+   --key_range value, -r value       Key range (default: 100000000)
+   --min_value_size value, -m value  Minimum value size (default: 300)
+   --max_value_size value, -M value  Maximum value size (default: 300)
+   --delete_ratio value, --dr value  Delete ratio (default: 0)
+   --runtime value, --rt value       Duration to run the benchmark (default: 1m40s)
+   --help, -h                        show help
+   --version, -v                     print the version
 ```
-
-- `-e, --engine` db engine type. Now support `memorydb` and `firewood`
-- `-d, --datadir` the data directory of the database
-- `-b, --bs` the number of keys read and write within a block
-- `-t, --threads` concurrency thread number
-- `-dr, --delete_ratio` delete ratio in a batch
-- `-r, --key_range` the random key range, `0-100000000` by default
-- `-m, --min_value_size` the minimum random value size
-- `-M, --max_value_size` the maximum random value size
-
 
 the result shown below:
 
