@@ -35,6 +35,7 @@ func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
 
 func (p *PbssStateTrie) Commit() (common.Hash, error) {
 	root, nodes := p.trie.Commit(true)
+
 	if nodes != nil {
 		if err := p.nodes.Merge(nodes); err != nil {
 			return types.EmptyRootHash, err
@@ -61,7 +62,7 @@ func (p *PbssStateTrie) Get(key []byte) ([]byte, error) {
 }
 
 func (p *PbssStateTrie) Delete(key []byte) error {
-	p.trie.GetNode(key)
+	p.trie.MustDelete(key)
 	return nil
 }
 
