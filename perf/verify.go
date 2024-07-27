@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type TrieVerifyer struct {
@@ -100,6 +101,7 @@ func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, com
 			fmt.Println("fail to insert key to trie", "key", string(keyName),
 				"err", err.Error())
 		}
+		log.Info("insert key", "key", keyName)
 		v.keyCache.Add(key)
 
 		if randomFloat() < v.perfConfig.DeleteRatio {
@@ -117,6 +119,7 @@ func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, com
 					fmt.Println("fail to delete key to trie", "key", string(keyName),
 						"err", err.Error())
 				}
+				log.Info("delete key", "key", keyName)
 			}
 		}
 	}

@@ -81,7 +81,7 @@ func (p *PbssRawTrie) GetMPTEngine() string {
 }
 
 func createChainDataBase(datadir string) (ethdb.Database, error) {
-	db, err := OpenDatabaseWithFreezer("geth", 10000, 10000, "", "chaindata",
+	db, err := OpenDatabaseWithFreezer("chaindata", 10000, 10000, "", "",
 		datadir)
 	if err != nil {
 		return nil, err
@@ -104,10 +104,12 @@ func MakePBSSTrieDatabase(datadir string) (*triedb.Database, error) {
 }
 
 func OpenDatabaseWithFreezer(name string, cache, handles int, ancient, namespace, datadir string) (ethdb.Database, error) {
+	data := filepath.Join(datadir, "geth")
+	directory := filepath.Join(data, name)
 	db, err := rawdb.Open(rawdb.OpenOptions{
 		Type:              "pebble",
-		Directory:         filepath.Join(datadir, name),
-		AncientsDirectory: filepath.Join(filepath.Join(datadir, name), "ancient"),
+		Directory:         directory,
+		AncientsDirectory: filepath.Join(directory, "ancient"),
 		Namespace:         namespace,
 		Cache:             cache,
 		Handles:           handles,
