@@ -160,7 +160,10 @@ func (r *Runner) InitTrie() {
 	addresses, accounts := makeAccounts(int(r.perfConfig.BatchSize) * 100)
 
 	for i := 0; i < len(addresses); i++ {
-		r.db.Put(crypto.Keccak256(addresses[i][:]), accounts[i])
+		err := r.db.Put(crypto.Keccak256(addresses[i][:]), accounts[i])
+		if err != nil {
+			panic("init trie err" + err.Error())
+		}
 		r.keyCache.Add(string(crypto.Keccak256(addresses[i][:])))
 	}
 
@@ -199,21 +202,26 @@ func (r *Runner) UpdateTrie(
 	// simulate insert and delete trie
 	for key, value := range taskInfo {
 		keyName := []byte(key)
-		if randomFloat() > r.perfConfig.DeleteRatio {
-			err := r.db.Put(keyName, value)
-			if err != nil {
-				fmt.Println("fail to insert key to trie", "key", string(keyName),
-					"err", err.Error())
+		err := r.db.Put(keyName, value)
+		if err != nil {
+			fmt.Println("fail to insert key to trie", "key", string(keyName),
+				"err", err.Error())
+		}
+		r.keyCache.Add(key)
+		r.stat.IncPut(1)
+
+		if randomFloat() < r.perfConfig.DeleteRatio {
+			// delete the key from inserted key cache
+			randomKey, found := r.keyCache.RandomItem()
+			if found {
+				keyName = []byte(randomKey)
+				err = r.db.Delete(keyName)
+				if err != nil {
+					fmt.Println("fail to delete key to trie", "key", string(keyName),
+						"err", err.Error())
+				}
+				r.stat.IncDelete(1)
 			}
-			r.keyCache.Add(key)
-			r.stat.IncPut(1)
-		} else {
-			err := r.db.Delete(keyName)
-			if err != nil {
-				fmt.Println("fail to delete key to trie", "key", string(keyName),
-					"err", err.Error())
-			}
-			r.stat.IncDelete(1)
 		}
 	}
 }
