@@ -126,8 +126,10 @@ func (r *Runner) runInternal(ctx context.Context) {
 
 			// commit
 			commitStart := time.Now()
-			if _, err := r.db.Commit(); err != nil {
-				panic("failed to commit: " + err.Error())
+			if r.db.GetMPTEngine() != VERSADBEngine {
+				if _, err := r.db.Commit(); err != nil {
+					panic("failed to commit: " + err.Error())
+				}
 			}
 			r.blockHeight++
 			r.commitDuration = time.Since(commitStart)
@@ -160,6 +162,12 @@ func (r *Runner) InitTrie() {
 	addresses, accounts := makeAccounts(int(r.perfConfig.BatchSize) * 100)
 
 	for i := 0; i < len(addresses); i++ {
+		if r.db == nil {
+			fmt.Println("empty db")
+		}
+		key := crypto.Keccak256(addresses[i][:])
+		value := accounts[i]
+		fmt.Println("input key:", key, "value", value)
 		err := r.db.Put(crypto.Keccak256(addresses[i][:]), accounts[i])
 		if err != nil {
 			panic("init trie err" + err.Error())

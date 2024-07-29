@@ -27,7 +27,8 @@ func (p *VersaTrie) Put(key []byte, value []byte) error {
 }
 
 func (p *VersaTrie) Get(key []byte) ([]byte, error) {
-	return p.trie.Get(key)
+	_, value, err := p.trie.Get(key)
+	return value, err
 }
 
 func (p *VersaTrie) Delete(key []byte) error {
