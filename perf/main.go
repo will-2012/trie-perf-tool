@@ -144,8 +144,11 @@ func runPerf(c *cli.Context) error {
 	} else if engine == VERSADBEngine {
 		fmt.Println("start to test trie:", VERSADBEngine)
 		stateDB = OpenVersaTrie(0, nil)
+	} else if engine == StateTrieEngine {
+		dir, _ := os.Getwd()
+		stateDB = OpenStateTrie(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash
 	}
-	runner := NewRunner(stateDB, parsePerfConfig(c), 100)
+	runner := NewRunner(stateDB, parsePerfConfig(c), 1000)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
 

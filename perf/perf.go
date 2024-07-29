@@ -62,11 +62,11 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 			return
 		default:
 			taskMap := make(map[string][]byte, batchSize*2)
-			address, acccounts := makeAccounts(int(batchSize))
+			address, acccounts := makeAccounts(int(batchSize) / 2)
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
 			}
-			for i := 0; i < int(batchSize); i++ {
+			for i := 0; i < int(batchSize)/2; i++ {
 				randomStr := generateValue(32, 32)
 				randomHash := common.BytesToHash(randomStr)
 				path := generateValue(0, 64)
@@ -162,12 +162,6 @@ func (r *Runner) InitTrie() {
 	addresses, accounts := makeAccounts(int(r.perfConfig.BatchSize) * 100)
 
 	for i := 0; i < len(addresses); i++ {
-		if r.db == nil {
-			fmt.Println("empty db")
-		}
-		key := crypto.Keccak256(addresses[i][:])
-		value := accounts[i]
-		fmt.Println("input key:", key, "value", value)
 		err := r.db.Put(crypto.Keccak256(addresses[i][:]), accounts[i])
 		if err != nil {
 			panic("init trie err" + err.Error())
