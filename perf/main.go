@@ -154,11 +154,11 @@ func runPerf(c *cli.Context) error {
 }
 
 func verifyHash(c *cli.Context) error {
-	//dir, _ := os.Getwd()
-	//secureTrie := OpenStateTrie(filepath.Join(dir, "test-dir"), types.EmptyRootHash)
-	versaTrie := OpenVersaTrie(0, nil)
+	dir, _ := os.Getwd()
+	secureTrie := OpenStateTrie(filepath.Join(dir, "test-dir"), types.EmptyRootHash)
+	//versaTrie := OpenVersaTrie(0, nil)
 
-	verifyer := NewVerifyer(nil, versaTrie, parsePerfConfig(c), 10)
+	verifyer := NewVerifyer(nil, secureTrie, parsePerfConfig(c), 10)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
 	fmt.Println("begin to verify root hash, the batch size of block is", verifyer.perfConfig.BatchSize)
