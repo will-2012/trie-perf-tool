@@ -64,6 +64,7 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 			taskMap := make(map[string][]byte, batchSize*2)
 			address, acccounts := makeAccounts(int(batchSize))
 			for i := 0; i < len(address); i++ {
+				fmt.Println("value size", len(acccounts[i]))
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
 			}
 			for i := 0; i < int(batchSize); i++ {
