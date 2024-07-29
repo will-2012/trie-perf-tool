@@ -176,8 +176,10 @@ func (r *Runner) InitTrie() {
 	}
 
 	// commit
-	if _, err := r.db.Commit(); err != nil {
-		panic("failed to commit: " + err.Error())
+	if r.db.GetMPTEngine() != VERSADBEngine {
+		if _, err := r.db.Commit(); err != nil {
+			panic("failed to commit: " + err.Error())
+		}
 	}
 }
 
