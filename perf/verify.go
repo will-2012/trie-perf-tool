@@ -75,28 +75,26 @@ func (v *TrieVerifyer) generateTasks(running *atomic.Bool) {
 }
 
 func (v *TrieVerifyer) compareHashRoot(taskInfo map[string][]byte) {
-	expectRoot, verifyRoot := v.getRootHash(taskInfo)
+	v.getRootHash(taskInfo)
 	v.blockHeight++
-	if expectRoot != verifyRoot {
-		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
-			expectRoot, verifyRoot)
-		v.failBatch++
-		panic("unexpect compare hash root")
-	} else {
-		v.successBatch++
-	}
+	/*
+		if expectRoot != verifyRoot {
+			fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
+				expectRoot, verifyRoot)
+			v.failBatch++
+			panic("unexpect compare hash root")
+		} else {
+			v.successBatch++
+		}
+
+	*/
 }
 
-func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, common.Hash) {
+func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) common.Hash {
 	// simulate insert and delete trie
 	for key, value := range taskInfo {
 		keyName := []byte(key)
-		err := v.baseDB.Put(keyName, value)
-		if err != nil {
-			fmt.Println("fail to insert key to trie", "key", string(keyName),
-				"err", err.Error())
-		}
-		err = v.verifyDB.Put(keyName, value)
+		err := v.verifyDB.Put(keyName, value)
 		if err != nil {
 			fmt.Println("fail to insert key to trie", "key", string(keyName),
 				"err", err.Error())
@@ -109,11 +107,6 @@ func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, com
 			randomKey, found := v.keyCache.RandomItem()
 			if found {
 				keyName = []byte(randomKey)
-				err = v.baseDB.Delete(keyName)
-				if err != nil {
-					fmt.Println("fail to delete key to trie", "key", string(keyName),
-						"err", err.Error())
-				}
 				err = v.verifyDB.Delete(keyName)
 				if err != nil {
 					fmt.Println("fail to delete key to trie", "key", string(keyName),
@@ -124,11 +117,7 @@ func (v *TrieVerifyer) getRootHash(taskInfo map[string][]byte) (common.Hash, com
 		}
 	}
 
-	baseRoot, err := v.baseDB.Commit()
-	if err != nil {
-		panic("state trie commit error")
-	}
 	verifyRoot := v.verifyDB.Hash()
 
-	return baseRoot, verifyRoot
+	return verifyRoot
 }

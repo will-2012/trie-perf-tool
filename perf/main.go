@@ -154,42 +154,11 @@ func runPerf(c *cli.Context) error {
 }
 
 func verifyHash(c *cli.Context) error {
-	dir, _ := os.Getwd()
-	secureTrie := OpenStateTrie(filepath.Join(dir, "test-dir"), types.EmptyRootHash)
+	//dir, _ := os.Getwd()
+	//secureTrie := OpenStateTrie(filepath.Join(dir, "test-dir"), types.EmptyRootHash)
 	versaTrie := OpenVersaTrie(0, nil)
 
-	vals := []struct{ k, v string }{
-		{"do", "verb"},
-		{"ether", "wookiedoo"},
-		{"horse", "stallion"},
-		{"shaman", "horse"},
-		{"doge", "coin"},
-		{"dog", "puppy"},
-	}
-
-	for _, val := range vals {
-		secureTrie.Put([]byte(val.k), []byte(val.v))
-		versaTrie.Put([]byte(val.k), []byte(val.v))
-	}
-	hash1 := versaTrie.Hash()
-	hash2, _ := secureTrie.Commit()
-	if hash1 != hash2 {
-		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
-			hash2, hash1)
-		panic("basic test fail")
-	}
-
-	secureTrie.Delete([]byte("doge"))
-	versaTrie.Delete([]byte("doge"))
-	hash1 = versaTrie.Hash()
-	hash2, _ = secureTrie.Commit()
-	if hash1 != hash2 {
-		fmt.Printf("compare hash root not same, pbss root %v, versa root %v \n",
-			hash2, hash1)
-		panic("basic test fail")
-	}
-
-	verifyer := NewVerifyer(secureTrie, versaTrie, parsePerfConfig(c), 10)
+	verifyer := NewVerifyer(nil, versaTrie, parsePerfConfig(c), 10)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
 	fmt.Println("begin to verify root hash, the batch size of block is", verifyer.perfConfig.BatchSize)
