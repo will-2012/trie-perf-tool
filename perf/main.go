@@ -146,7 +146,7 @@ func runPerf(c *cli.Context) error {
 		stateDB = OpenVersaTrie(0, nil)
 	} else if engine == StateTrieEngine {
 		dir, _ := os.Getwd()
-		stateDB = OpenStateTrie(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash
+		stateDB = OpenStateTrie(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
 	}
 	runner := NewRunner(stateDB, parsePerfConfig(c), 1000)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
