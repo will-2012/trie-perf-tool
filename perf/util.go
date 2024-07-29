@@ -14,8 +14,10 @@ import (
 )
 
 type Stat struct {
-	ioStat     IOStat
-	lastIoStat IOStat
+	ioStat      IOStat
+	lastIoStat  IOStat
+	startIOStat IOStat // Initial IOStat when the service starts
+	totalIOStat IOStat // Accumulated IOStat for average calculation
 }
 
 type IOStat struct {
@@ -26,19 +28,17 @@ type IOStat struct {
 }
 
 func NewStat() *Stat {
+	startIOStat := IOStat{
+		get:         0,
+		put:         0,
+		delete:      0,
+		getNotExist: 0,
+	}
 	return &Stat{
-		ioStat: IOStat{
-			get:         0,
-			put:         0,
-			getNotExist: 0,
-			delete:      0,
-		},
-		lastIoStat: IOStat{
-			get:         0,
-			put:         0,
-			getNotExist: 0,
-			delete:      0,
-		},
+		ioStat:      startIOStat,
+		lastIoStat:  startIOStat,
+		startIOStat: startIOStat,
+		totalIOStat: startIOStat,
 	}
 }
 
@@ -51,9 +51,17 @@ func (s *Stat) CalcTpsAndOutput(delta time.Duration) string {
 	deltaF64 := delta.Seconds()
 
 	getTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
-	putTps := float64(put-atomic.LoadUint64(&s.lastIoStat.put)) / deltaF64
-	deleteTps := float64(del-atomic.LoadUint64(&s.lastIoStat.delete)) / deltaF64
+	putTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
+	deleteTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
 	getNotExistTps := float64(getNotExist-atomic.LoadUint64(&s.lastIoStat.getNotExist)) / deltaF64
+
+	// Update total IOStat for average calculation
+	s.totalIOStat = IOStat{
+		get:         s.totalIOStat.get + (get - atomic.LoadUint64(&s.lastIoStat.get)),
+		put:         s.totalIOStat.put + (get - atomic.LoadUint64(&s.lastIoStat.get)),
+		delete:      s.totalIOStat.delete + (get - atomic.LoadUint64(&s.lastIoStat.delete)),
+		getNotExist: s.totalIOStat.getNotExist + (getNotExist - atomic.LoadUint64(&s.lastIoStat.getNotExist)),
+	}
 
 	// keep io stat snapshot
 	atomic.StoreUint64(&s.lastIoStat.get, get)
@@ -64,6 +72,21 @@ func (s *Stat) CalcTpsAndOutput(delta time.Duration) string {
 	return fmt.Sprintf(
 		"tps: [get=%.2f, put=%.2f, delete=%.2f, get_not_exist=%.2f]",
 		getTps, putTps, deleteTps, getNotExistTps,
+	)
+}
+
+// CalcAverageIOStat calculates the average IOStat and returns a formatted string.
+func (s *Stat) CalcAverageIOStat(duration time.Duration) string {
+	durationF64 := duration.Seconds()
+
+	avgGet := float64(s.totalIOStat.get) / durationF64
+	avgPut := float64(s.totalIOStat.put) / durationF64
+	avgDelete := float64(s.totalIOStat.delete) / durationF64
+	avgGetNotExist := float64(s.totalIOStat.getNotExist) / durationF64
+
+	return fmt.Sprintf(
+		"average tps: [get=%.2f, put=%.2f, delete=%.2f, get_not_exist=%.2f]",
+		avgGet, avgPut, avgDelete, avgGetNotExist,
 	)
 }
 

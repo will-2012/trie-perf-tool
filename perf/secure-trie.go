@@ -57,7 +57,7 @@ func (p *PbssStateTrie) Put(key []byte, value []byte) error {
 }
 
 func (p *PbssStateTrie) Get(key []byte) ([]byte, error) {
-	value := p.trie.GetKey(key)
+	value := p.trie.MustGet(key)
 	return value, nil
 }
 

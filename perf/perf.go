@@ -14,16 +14,19 @@ import (
 )
 
 type Runner struct {
-	db              TrieDatabase
-	perfConfig      PerfConfig
-	stat            *Stat
-	lastStatInstant time.Time
-	taskChan        chan map[string][]byte
-	keyCache        *InsertedKeySet
-	blockHeight     uint64
-	rwDuration      time.Duration
-	commitDuration  time.Duration
-	hashDuration    time.Duration
+	db                TrieDatabase
+	perfConfig        PerfConfig
+	stat              *Stat
+	lastStatInstant   time.Time
+	taskChan          chan map[string][]byte
+	keyCache          *InsertedKeySet
+	blockHeight       uint64
+	rwDuration        time.Duration
+	commitDuration    time.Duration
+	hashDuration      time.Duration
+	totalRwDurations  time.Duration // Accumulated rwDuration
+	BlockCount        int64         // Number of rwDuration samples
+	totalHashurations time.Duration
 }
 
 func NewRunner(
@@ -108,8 +111,10 @@ func storageTrieNodeKey(accountHash common.Hash, path []byte) []byte {
 }
 
 func (r *Runner) runInternal(ctx context.Context) {
+	startTime := time.Now()
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
+	printAvg := 0
 
 	for {
 		select {
@@ -118,15 +123,15 @@ func (r *Runner) runInternal(ctx context.Context) {
 			// read, put or delete keys
 			r.UpdateTrie(taskInfo)
 			r.rwDuration = time.Since(rwStart)
-
+			r.totalRwDurations += r.rwDuration
 			// compute hash
 			hashStart := time.Now()
 			r.db.Hash()
 			r.hashDuration = time.Since(hashStart)
-
+			r.totalHashurations += r.hashDuration
 			// commit
 			commitStart := time.Now()
-			if r.db.GetMPTEngine() != VERSADBEngine {
+			if r.db.GetMPTEngine() == PbssRawTrieEngine {
 				if _, err := r.db.Commit(); err != nil {
 					panic("failed to commit: " + err.Error())
 				}
@@ -136,12 +141,27 @@ func (r *Runner) runInternal(ctx context.Context) {
 
 		case <-ticker.C:
 			r.printStat()
+			printAvg++
+			if printAvg%200 == 0 {
+				r.printAVGStat(startTime)
+			}
 
 		case <-ctx.Done():
 			fmt.Println("Shutting down")
+			r.printAVGStat(startTime)
 			return
 		}
 	}
+}
+
+func (r *Runner) printAVGStat(startTime time.Time) {
+	fmt.Printf(
+		" Avg Perf metrics: %s, block height=%d elapsed: [rw=%v ms, cal hash=%v ms]\n",
+		r.stat.CalcAverageIOStat(time.Since(startTime)),
+		r.blockHeight,
+		r.totalRwDurations.Milliseconds()/int64(r.blockHeight),
+		r.totalHashurations.Milliseconds()/int64(r.blockHeight),
+	)
 }
 
 func (r *Runner) printStat() {
@@ -170,7 +190,7 @@ func (r *Runner) InitTrie() {
 	}
 
 	// commit
-	if r.db.GetMPTEngine() != VERSADBEngine {
+	if r.db.GetMPTEngine() == PbssRawTrieEngine {
 		if _, err := r.db.Commit(); err != nil {
 			panic("failed to commit: " + err.Error())
 		}
@@ -187,7 +207,7 @@ func (r *Runner) UpdateTrie(
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < int(r.perfConfig.BatchSize)/r.perfConfig.NumJobs; j++ {
+			for j := 0; j < int(r.perfConfig.BatchSize)/r.perfConfig.NumJobs*3; j++ {
 				randomKey, found := r.keyCache.RandomItem()
 				if found {
 					keyBytes := []byte(randomKey)
