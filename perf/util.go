@@ -51,14 +51,14 @@ func (s *Stat) CalcTpsAndOutput(delta time.Duration) string {
 	deltaF64 := delta.Seconds()
 
 	getTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
-	putTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
-	deleteTps := float64(get-atomic.LoadUint64(&s.lastIoStat.get)) / deltaF64
+	putTps := float64(get-atomic.LoadUint64(&s.lastIoStat.put)) / deltaF64
+	deleteTps := float64(get-atomic.LoadUint64(&s.lastIoStat.delete)) / deltaF64
 	getNotExistTps := float64(getNotExist-atomic.LoadUint64(&s.lastIoStat.getNotExist)) / deltaF64
 
 	// Update total IOStat for average calculation
 	s.totalIOStat = IOStat{
 		get:         s.totalIOStat.get + (get - atomic.LoadUint64(&s.lastIoStat.get)),
-		put:         s.totalIOStat.put + (get - atomic.LoadUint64(&s.lastIoStat.get)),
+		put:         s.totalIOStat.put + (get - atomic.LoadUint64(&s.lastIoStat.put)),
 		delete:      s.totalIOStat.delete + (get - atomic.LoadUint64(&s.lastIoStat.delete)),
 		getNotExist: s.totalIOStat.getNotExist + (getNotExist - atomic.LoadUint64(&s.lastIoStat.getNotExist)),
 	}
