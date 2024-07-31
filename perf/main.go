@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/metrics/exp"
 	"github.com/urfave/cli/v2"
 )
@@ -90,6 +91,10 @@ func main() {
 				Usage:       "Metrics HTTP server listening port",
 				Value:       8545,
 				Destination: &config.MetricsPort,
+			},
+			&cli.BoolFlag{
+				Name:  "metrics",
+				Usage: "Enable metrics collection and reporting",
 			},
 
 			&cli.Uint64Flag{
@@ -174,6 +179,8 @@ func runPerf(c *cli.Context) error {
 	address := net.JoinHostPort(c.String("metrics.addr"), fmt.Sprintf("%d", c.Int("metrics.port")))
 	fmt.Println("Enabling stand-alone metrics HTTP endpoint", "address", address)
 	exp.Setup(address)
+
+	go metrics.CollectProcessMetrics(3 * time.Second)
 	runner.Run(ctx)
 	return nil
 }
