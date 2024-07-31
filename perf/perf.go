@@ -42,10 +42,9 @@ func NewRunner(
 	config PerfConfig,
 	taskBufferSize int, // Added a buffer size parameter for the task channel
 ) *Runner {
-	getLatency := metrics.NewRegisteredTimer("db/get_latency", nil)
-	putLatency := metrics.NewRegisteredTimer("db/put_latency", nil)
-	memoryUsage := metrics.NewRegisteredGauge("go/memory_usage", nil)
-
+	getLatency := metrics.NewRegisteredTimer("db/get/latency", nil)
+	putLatency := metrics.NewRegisteredTimer("db/put/latency", nil)
+	memoryUsage := metrics.NewRegisteredGauge("go/memory/usage", nil)
 	runner := &Runner{
 		db:              db,
 		stat:            NewStat(),
