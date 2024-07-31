@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/metrics"
 )
 
 type Runner struct {
@@ -31,10 +30,6 @@ type Runner struct {
 	totalRwDurations  time.Duration // Accumulated rwDuration
 	BlockCount        int64         // Number of rwDuration samples
 	totalHashurations time.Duration
-
-	getLatency  metrics.Timer
-	putLatency  metrics.Timer
-	memoryUsage metrics.Gauge
 }
 
 func NewRunner(
@@ -42,9 +37,6 @@ func NewRunner(
 	config PerfConfig,
 	taskBufferSize int, // Added a buffer size parameter for the task channel
 ) *Runner {
-	getLatency := metrics.NewRegisteredTimer("db/get/latency", nil)
-	putLatency := metrics.NewRegisteredTimer("db/put/latency", nil)
-	memoryUsage := metrics.NewRegisteredGauge("go/memory/usage", nil)
 	runner := &Runner{
 		db:              db,
 		stat:            NewStat(),
@@ -52,9 +44,6 @@ func NewRunner(
 		perfConfig:      config,
 		taskChan:        make(chan map[string][]byte, taskBufferSize),
 		keyCache:        NewFixedSizeSet(1000000),
-		getLatency:      getLatency,
-		putLatency:      putLatency,
-		memoryUsage:     memoryUsage,
 	}
 
 	return runner
@@ -240,7 +229,7 @@ func (r *Runner) UpdateTrie(
 					startGet := time.Now()
 					if value, err := r.db.Get(keyBytes); err == nil {
 						r.stat.IncGet(1)
-						r.getLatency.Update(time.Since(startGet))
+						getLatency.Update(time.Since(startGet))
 						if value == nil {
 							r.stat.IncGetNotExist(1)
 						}
@@ -262,7 +251,7 @@ func (r *Runner) UpdateTrie(
 			fmt.Println("fail to insert key to trie", "key", string(keyName),
 				"err", err.Error())
 		}
-		r.putLatency.Update(time.Since(startPut))
+		putLatency.Update(time.Since(startPut))
 		r.keyCache.Add(key)
 		r.stat.IncPut(1)
 	}
