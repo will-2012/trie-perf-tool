@@ -22,6 +22,8 @@ type Runner struct {
 	keyCache          *InsertedKeySet
 	blockHeight       uint64
 	rwDuration        time.Duration
+	rDuration         time.Duration
+	wDuration         time.Duration
 	commitDuration    time.Duration
 	hashDuration      time.Duration
 	totalRwDurations  time.Duration // Accumulated rwDuration
@@ -167,11 +169,13 @@ func (r *Runner) printAVGStat(startTime time.Time) {
 func (r *Runner) printStat() {
 	delta := time.Since(r.lastStatInstant)
 	fmt.Printf(
-		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v, commit=%v, cal hash=%v]\n",
+		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v, read=%v, write=%v, commit=%v, cal hash=%v]\n",
 		time.Now().Format(time.RFC3339Nano),
 		r.stat.CalcTpsAndOutput(delta),
 		r.blockHeight,
 		r.rwDuration,
+		r.rDuration,
+		r.wDuration,
 		r.commitDuration,
 		r.hashDuration,
 	)
@@ -200,14 +204,16 @@ func (r *Runner) InitTrie() {
 func (r *Runner) UpdateTrie(
 	taskInfo map[string][]byte,
 ) {
+
 	var wg sync.WaitGroup
+	start := time.Now()
 	// simulate parallel read
 	for i := 0; i < r.perfConfig.NumJobs; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < int(r.perfConfig.BatchSize)/r.perfConfig.NumJobs*3; j++ {
+			for j := 0; j < int(r.perfConfig.BatchSize)/r.perfConfig.NumJobs*5; j++ {
 				randomKey, found := r.keyCache.RandomItem()
 				if found {
 					keyBytes := []byte(randomKey)
@@ -221,8 +227,10 @@ func (r *Runner) UpdateTrie(
 			}
 		}()
 	}
+	r.rDuration = time.Since(start)
 	wg.Wait()
 
+	start = time.Now()
 	// simulate insert and delete trie
 	for key, value := range taskInfo {
 		keyName := []byte(key)
@@ -233,13 +241,16 @@ func (r *Runner) UpdateTrie(
 		}
 		r.keyCache.Add(key)
 		r.stat.IncPut(1)
+	}
+	r.wDuration = time.Since(start)
 
+	for i := 0; i < len(taskInfo); i++ {
 		if randomFloat() < r.perfConfig.DeleteRatio {
 			// delete the key from inserted key cache
 			randomKey, found := r.keyCache.RandomItem()
 			if found {
-				keyName = []byte(randomKey)
-				err = r.db.Delete(keyName)
+				keyName := []byte(randomKey)
+				err := r.db.Delete(keyName)
 				if err != nil {
 					fmt.Println("fail to delete key to trie", "key", string(keyName),
 						"err", err.Error())
