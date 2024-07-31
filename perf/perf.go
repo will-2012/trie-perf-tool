@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/metrics"
 )
 
 type Runner struct {
@@ -29,6 +31,10 @@ type Runner struct {
 	totalRwDurations  time.Duration // Accumulated rwDuration
 	BlockCount        int64         // Number of rwDuration samples
 	totalHashurations time.Duration
+
+	getLatency  metrics.Timer
+	putLatency  metrics.Timer
+	memoryUsage metrics.Gauge
 }
 
 func NewRunner(
@@ -36,6 +42,10 @@ func NewRunner(
 	config PerfConfig,
 	taskBufferSize int, // Added a buffer size parameter for the task channel
 ) *Runner {
+	getLatency := metrics.NewRegisteredTimer("db/get_latency", nil)
+	putLatency := metrics.NewRegisteredTimer("db/put_latency", nil)
+	memoryUsage := metrics.NewRegisteredGauge("go/memory_usage", nil)
+
 	runner := &Runner{
 		db:              db,
 		stat:            NewStat(),
@@ -43,6 +53,9 @@ func NewRunner(
 		perfConfig:      config,
 		taskChan:        make(chan map[string][]byte, taskBufferSize),
 		keyCache:        NewFixedSizeSet(1000000),
+		getLatency:      getLatency,
+		putLatency:      putLatency,
+		memoryUsage:     memoryUsage,
 	}
 
 	return runner
@@ -81,6 +94,12 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 			taskChan <- taskMap
 		}
 	}
+}
+
+func (r *Runner) updateMemoryUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	r.memoryUsage.Update(int64(m.Alloc))
 }
 
 // randInt returns a random integer between min and max
@@ -147,6 +166,7 @@ func (r *Runner) runInternal(ctx context.Context) {
 			if printAvg%200 == 0 {
 				r.printAVGStat(startTime)
 			}
+			r.updateMemoryUsage()
 
 		case <-ctx.Done():
 			fmt.Println("Shutting down")
@@ -169,7 +189,8 @@ func (r *Runner) printAVGStat(startTime time.Time) {
 func (r *Runner) printStat() {
 	delta := time.Since(r.lastStatInstant)
 	fmt.Printf(
-		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v, read=%v, write=%v, commit=%v, cal hash=%v]\n",
+		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v,"+
+			" batch read=%v, batch write=%v, commit=%v, cal hash=%v]\n",
 		time.Now().Format(time.RFC3339Nano),
 		r.stat.CalcTpsAndOutput(delta),
 		r.blockHeight,
@@ -217,8 +238,10 @@ func (r *Runner) UpdateTrie(
 				randomKey, found := r.keyCache.RandomItem()
 				if found {
 					keyBytes := []byte(randomKey)
+					startGet := time.Now()
 					if value, err := r.db.Get(keyBytes); err == nil {
 						r.stat.IncGet(1)
+						r.getLatency.Update(time.Since(startGet))
 						if value == nil {
 							r.stat.IncGetNotExist(1)
 						}
@@ -234,11 +257,13 @@ func (r *Runner) UpdateTrie(
 	// simulate insert and delete trie
 	for key, value := range taskInfo {
 		keyName := []byte(key)
+		startPut := time.Now()
 		err := r.db.Put(keyName, value)
 		if err != nil {
 			fmt.Println("fail to insert key to trie", "key", string(keyName),
 				"err", err.Error())
 		}
+		r.putLatency.Update(time.Since(startPut))
 		r.keyCache.Add(key)
 		r.stat.IncPut(1)
 	}

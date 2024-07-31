@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/metrics/exp"
 	"github.com/urfave/cli/v2"
 )
 
@@ -28,6 +30,8 @@ type PerfConfig struct {
 	MinValueSize uint64
 	MaxValueSize uint64
 	DeleteRatio  float64
+	MetricsAddr  string
+	MetricsPort  int
 }
 
 const version = "1.0.0"
@@ -73,6 +77,21 @@ func main() {
 				Value:       "./dataset",
 				Destination: &config.DataDir,
 			},
+			&cli.StringFlag{
+				Name:        "metrics.addr",
+				Aliases:     []string{"ma"},
+				Usage:       "metrics address",
+				Value:       "127.0.0.1",
+				Destination: &config.MetricsAddr,
+			},
+			&cli.IntFlag{
+				Name:        "metrics.port",
+				Aliases:     []string{"mp"},
+				Usage:       "Metrics HTTP server listening port",
+				Value:       8545,
+				Destination: &config.MetricsPort,
+			},
+
 			&cli.Uint64Flag{
 				Name:        "bs",
 				Aliases:     []string{"b"},
@@ -152,6 +171,9 @@ func runPerf(c *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
 
+	address := net.JoinHostPort(c.String("metrics.addr"), fmt.Sprintf("%d", c.Int("metrics.port")))
+	fmt.Println("Enabling stand-alone metrics HTTP endpoint", "address", address)
+	exp.Setup(address)
 	runner.Run(ctx)
 	return nil
 }
