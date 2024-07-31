@@ -87,7 +87,7 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 func (r *Runner) updateMemoryUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	r.memoryUsage.Update(int64(m.Alloc))
+	memoryUsage.Update(int64(m.Alloc))
 }
 
 // randInt returns a random integer between min and max
