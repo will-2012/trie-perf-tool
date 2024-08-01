@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type Runner struct {
@@ -28,7 +29,9 @@ type Runner struct {
 	commitDuration    time.Duration
 	hashDuration      time.Duration
 	totalRwDurations  time.Duration // Accumulated rwDuration
-	BlockCount        int64         // Number of rwDuration samples
+	totalReadCost     time.Duration
+	totalWriteCost    time.Duration
+	BlockCount        int64 // Number of rwDuration samples
 	totalHashurations time.Duration
 }
 
@@ -67,7 +70,7 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 		case <-ctx.Done():
 			return
 		default:
-			taskMap := make(map[string][]byte, batchSize*2)
+			taskMap := make(map[string][]byte, batchSize)
 			address, acccounts := makeAccounts(int(batchSize) / 2)
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
@@ -87,7 +90,11 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 func (r *Runner) updateMemoryUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	memoryUsage.Update(int64(m.Alloc))
+	if r.db.GetMPTEngine() == VERSADBEngine {
+		VeraTrieMemoryUsage.Update(int64(m.Alloc))
+	} else {
+		stateTrieMemoryUsage.Update(int64(m.Alloc))
+	}
 }
 
 // randInt returns a random integer between min and max
@@ -137,6 +144,13 @@ func (r *Runner) runInternal(ctx context.Context) {
 			hashStart := time.Now()
 			r.db.Hash()
 			r.hashDuration = time.Since(hashStart)
+
+			if r.db.GetMPTEngine() == VERSADBEngine {
+				VeraTrieHashLatency.Update(r.hashDuration)
+			} else {
+				stateTrieHashLatency.Update(r.hashDuration)
+			}
+
 			r.totalHashurations += r.hashDuration
 			// commit
 			commitStart := time.Now()
@@ -151,7 +165,7 @@ func (r *Runner) runInternal(ctx context.Context) {
 		case <-ticker.C:
 			r.printStat()
 			printAvg++
-			if printAvg%200 == 0 {
+			if printAvg%100 == 0 {
 				r.printAVGStat(startTime)
 			}
 			r.updateMemoryUsage()
@@ -166,23 +180,22 @@ func (r *Runner) runInternal(ctx context.Context) {
 
 func (r *Runner) printAVGStat(startTime time.Time) {
 	fmt.Printf(
-		" Avg Perf metrics: %s, block height=%d elapsed: [rw=%v ms, cal hash=%v ms]\n",
+		" Avg Perf metrics: %s, block height=%d elapsed: [read=%v us, write=%v ms, cal hash=%v us]\n",
 		r.stat.CalcAverageIOStat(time.Since(startTime)),
 		r.blockHeight,
-		r.totalRwDurations.Milliseconds()/int64(r.blockHeight),
-		r.totalHashurations.Milliseconds()/int64(r.blockHeight),
+		float64(r.totalReadCost.Microseconds())/float64(r.blockHeight),
+		float64(r.totalWriteCost.Microseconds())/float64(r.blockHeight),
+		float64(r.totalHashurations.Milliseconds())/float64(r.blockHeight),
 	)
 }
 
 func (r *Runner) printStat() {
 	delta := time.Since(r.lastStatInstant)
 	fmt.Printf(
-		"[%s] Perf In Progress %s, block height=%d elapsed: [rw=%v,"+
-			" batch read=%v, batch write=%v, commit=%v, cal hash=%v]\n",
+		"[%s] Perf In Progress %s, block height=%d elapsed: [batch read=%v, batch write=%v, commit=%v, cal hash=%v]\n",
 		time.Now().Format(time.RFC3339Nano),
 		r.stat.CalcTpsAndOutput(delta),
 		r.blockHeight,
-		r.rwDuration,
 		r.rDuration,
 		r.wDuration,
 		r.commitDuration,
@@ -221,7 +234,7 @@ func (r *Runner) UpdateTrie(
 	taskInfo map[string][]byte,
 ) {
 	// todo make it as config
-	readNum := int(r.perfConfig.BatchSize)
+	batchSize := int(r.perfConfig.BatchSize)
 
 	var wg sync.WaitGroup
 	start := time.Now()
@@ -231,7 +244,7 @@ func (r *Runner) UpdateTrie(
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < readNum; j++ {
+			for j := 0; j < batchSize; j++ {
 				randomKey, found := r.keyCache.RandomItem()
 				if found {
 					keyBytes := []byte(randomKey)
@@ -240,24 +253,39 @@ func (r *Runner) UpdateTrie(
 					var value []byte
 					if r.db.GetFlattenDB() == nil {
 						value, err = r.db.Get(keyBytes)
+						if err == nil {
+							r.stat.IncGet(1)
+							if r.db.GetMPTEngine() == VERSADBEngine {
+								VeraTrieGetLatency.Update(time.Since(startGet))
+							} else {
+								stateTrieGetLatency.Update(time.Since(startGet))
+							}
+							if value == nil {
+								r.stat.IncGetNotExist(1)
+							}
+						}
 					} else {
 						// if flatten db exist, read key from leveldb
 						value, err = r.db.GetFlattenDB().Get(keyBytes)
-					}
-					if err == nil {
 						r.stat.IncGet(1)
-						getLatency.Update(time.Since(startGet))
-						if value == nil {
+						stateTrieGetLatency.Update(time.Since(startGet))
+						if err == leveldb.ErrNotFound {
 							r.stat.IncGetNotExist(1)
 						}
 					}
+
 				}
 			}
 		}()
 	}
 	r.rDuration = time.Since(start)
+	r.totalReadCost += r.rDuration
 	wg.Wait()
-	getTps.Update(int64(readNum) / int64(r.rDuration.Seconds()))
+	if r.db.GetMPTEngine() == VERSADBEngine {
+		VeraTrieGetTps.Update(int64(r.perfConfig.NumJobs*batchSize) / r.rDuration.Microseconds())
+	} else {
+		stateTrieGetTps.Update(int64(r.perfConfig.NumJobs*batchSize) / r.rDuration.Microseconds())
+	}
 
 	start = time.Now()
 	// simulate insert and delete trie
@@ -269,12 +297,22 @@ func (r *Runner) UpdateTrie(
 			fmt.Println("fail to insert key to trie", "key", string(keyName),
 				"err", err.Error())
 		}
-		putLatency.Update(time.Since(startPut))
+
+		if r.db.GetMPTEngine() == VERSADBEngine {
+			VeraTriePutLatency.Update(time.Since(startPut))
+		} else {
+			stateTriePutLatency.Update(time.Since(startPut))
+		}
 		r.keyCache.Add(key)
 		r.stat.IncPut(1)
 	}
 	r.wDuration = time.Since(start)
-	putTps.Update(int64(readNum) / int64(r.wDuration.Seconds()))
+	r.totalWriteCost += r.wDuration
+	if r.db.GetMPTEngine() == VERSADBEngine {
+		VeraTriePutTps.Update(int64(batchSize) / r.wDuration.Milliseconds())
+	} else {
+		stateTriePutTps.Update(int64(batchSize) / r.wDuration.Milliseconds())
+	}
 
 	// double write to leveldb
 	if r.db.GetFlattenDB() != nil {
@@ -289,13 +327,19 @@ func (r *Runner) UpdateTrie(
 		}
 	}
 
-	for i := 0; i < len(taskInfo); i++ {
+	for i := 0; i < int(r.perfConfig.BatchSize); i++ {
 		if randomFloat() < r.perfConfig.DeleteRatio {
 			// delete the key from inserted key cache
 			randomKey, found := r.keyCache.RandomItem()
 			if found {
 				keyName := []byte(randomKey)
-				err := r.db.Delete(keyName)
+				var err error
+				if r.db.GetMPTEngine() == VERSADBEngine {
+					err = r.db.Delete(keyName)
+				} else {
+					err = r.db.GetFlattenDB().Delete(keyName)
+				}
+
 				if err != nil {
 					fmt.Println("fail to delete key to trie", "key", string(keyName),
 						"err", err.Error())
