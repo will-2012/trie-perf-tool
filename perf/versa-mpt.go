@@ -5,6 +5,7 @@ import (
 	versa_tree "versioned-state-database/tree"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb"
 )
 
 type VersaTrie struct {
@@ -42,4 +43,8 @@ func (p *VersaTrie) Commit() (common.Hash, error) {
 
 func (p *VersaTrie) GetMPTEngine() string {
 	return VERSADBEngine
+}
+
+func (p *VersaTrie) GetFlattenDB() ethdb.KeyValueStore {
+	return nil
 }

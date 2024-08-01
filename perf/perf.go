@@ -200,6 +200,13 @@ func (r *Runner) InitTrie() {
 			panic("init trie err" + err.Error())
 		}
 		r.keyCache.Add(string(crypto.Keccak256(addresses[i][:])))
+		// double write to leveldb
+		if r.db.GetFlattenDB() != nil {
+			err = r.db.GetFlattenDB().Put(crypto.Keccak256(addresses[i][:]), accounts[i])
+			if err != nil {
+				panic("init trie err" + err.Error())
+			}
+		}
 	}
 
 	// commit
@@ -229,7 +236,15 @@ func (r *Runner) UpdateTrie(
 				if found {
 					keyBytes := []byte(randomKey)
 					startGet := time.Now()
-					if value, err := r.db.Get(keyBytes); err == nil {
+					var err error
+					var value []byte
+					if r.db.GetFlattenDB() == nil {
+						value, err = r.db.Get(keyBytes)
+					} else {
+						// if flatten db exist, read key from leveldb
+						value, err = r.db.GetFlattenDB().Get(keyBytes)
+					}
+					if err == nil {
 						r.stat.IncGet(1)
 						getLatency.Update(time.Since(startGet))
 						if value == nil {
@@ -260,6 +275,19 @@ func (r *Runner) UpdateTrie(
 	}
 	r.wDuration = time.Since(start)
 	putTps.Update(int64(readNum) / int64(r.wDuration.Seconds()))
+
+	// double write to leveldb
+	if r.db.GetFlattenDB() != nil {
+		leveldb := r.db.GetFlattenDB()
+		for key, value := range taskInfo {
+			keyName := []byte(key)
+			err := leveldb.Put(keyName, value)
+			if err != nil {
+				fmt.Println("fail to insert key to trie", "key", string(keyName),
+					"err", err.Error())
+			}
+		}
+	}
 
 	for i := 0; i < len(taskInfo); i++ {
 		if randomFloat() < r.perfConfig.DeleteRatio {

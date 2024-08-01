@@ -75,12 +75,16 @@ func (p *PbssRawTrie) Delete(key []byte) error {
 	return p.trie.Delete(key)
 }
 
+func (p *PbssRawTrie) GetFlattenDB() ethdb.KeyValueStore {
+	return nil
+}
+
 func (p *PbssRawTrie) GetMPTEngine() string {
 	return PbssRawTrieEngine
 }
 
 func createChainDataBase(datadir string) (ethdb.Database, error) {
-	db, err := OpenDatabaseWithFreezer("chaindata", 10000, 10000, "", "",
+	db, err := OpenDatabaseWithFreezer("chaindata", 1000, 20000, "", "",
 		datadir)
 	if err != nil {
 		return nil, err

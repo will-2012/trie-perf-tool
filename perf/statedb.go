@@ -1,6 +1,9 @@
 package main
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb"
+)
 
 // Database wraps access to tries and contract code.
 type TrieDatabase interface {
@@ -16,6 +19,8 @@ type TrieDatabase interface {
 	Hash() common.Hash
 
 	GetMPTEngine() string
+
+	GetFlattenDB() ethdb.KeyValueStore
 }
 
 type TrieBatch interface {

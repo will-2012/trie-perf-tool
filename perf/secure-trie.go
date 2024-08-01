@@ -2,16 +2,19 @@ package main
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	bsctrie "github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
 type PbssStateTrie struct {
-	trie  *bsctrie.StateTrie
-	db    *triedb.Database
-	nodes *trienode.MergedNodeSet
+	trie      *bsctrie.StateTrie
+	db        *triedb.Database
+	nodes     *trienode.MergedNodeSet
+	flattenDB ethdb.KeyValueStore
 }
 
 func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
@@ -26,10 +29,17 @@ func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
 	if nodeSet == nil {
 		panic("node set empty")
 	}
+
+	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "", false)
+	if err != nil {
+		panic("create leveldb err")
+	}
+
 	return &PbssStateTrie{
-		trie:  t,
-		db:    triedb,
-		nodes: nodeSet,
+		trie:      t,
+		db:        triedb,
+		nodes:     nodeSet,
+		flattenDB: leveldb,
 	}
 }
 
@@ -68,4 +78,8 @@ func (p *PbssStateTrie) Delete(key []byte) error {
 
 func (p *PbssStateTrie) GetMPTEngine() string {
 	return StateTrieEngine
+}
+
+func (p *PbssStateTrie) GetFlattenDB() ethdb.KeyValueStore {
+	return p.flattenDB
 }
