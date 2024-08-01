@@ -213,6 +213,8 @@ func (r *Runner) InitTrie() {
 func (r *Runner) UpdateTrie(
 	taskInfo map[string][]byte,
 ) {
+	// todo make it as config
+	readNum := int(r.perfConfig.BatchSize)
 
 	var wg sync.WaitGroup
 	start := time.Now()
@@ -222,7 +224,7 @@ func (r *Runner) UpdateTrie(
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < int(r.perfConfig.BatchSize)/r.perfConfig.NumJobs*5; j++ {
+			for j := 0; j < readNum; j++ {
 				randomKey, found := r.keyCache.RandomItem()
 				if found {
 					keyBytes := []byte(randomKey)
@@ -240,6 +242,7 @@ func (r *Runner) UpdateTrie(
 	}
 	r.rDuration = time.Since(start)
 	wg.Wait()
+	getTps.Update(int64(readNum) / int64(r.rDuration.Seconds()))
 
 	start = time.Now()
 	// simulate insert and delete trie
@@ -256,6 +259,7 @@ func (r *Runner) UpdateTrie(
 		r.stat.IncPut(1)
 	}
 	r.wDuration = time.Since(start)
+	putTps.Update(int64(readNum) / int64(r.wDuration.Seconds()))
 
 	for i := 0; i < len(taskInfo); i++ {
 		if randomFloat() < r.perfConfig.DeleteRatio {
