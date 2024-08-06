@@ -224,7 +224,6 @@ func (d *DBRunner) UpdateDB(
 				if found {
 					var value []byte
 					value, err := d.db.GetAccount(randomKey)
-					fmt.Println("get account value", "key", randomKey, "value:", value)
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
 						if err != nil {
