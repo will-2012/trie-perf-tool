@@ -70,13 +70,13 @@ func generateStorageTasks(ctx context.Context, taskChan chan<- DBTask, batchSize
 			taskMap := make(DBTask, batchSize)
 			random := mathrand.New(mathrand.NewSource(0))
 
-			address, accounts := makeAccounts(int(batchSize) / 2)
+			address, accounts := makeAccounts(int(batchSize) - 10)
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = CAKeyValue{
 					Account: accounts[i]}
 			}
 
-			CAAccount := make([][20]byte, batchSize/2)
+			CAAccount := make([][20]byte, 10)
 			for i := 0; i < len(CAAccount); i++ {
 				data := make([]byte, 20)
 				random.Read(data)
@@ -195,14 +195,9 @@ func (r *DBRunner) InitDB() {
 	}
 
 	fmt.Println("init db account suceess")
-
-	val, _ := r.db.GetAccount(string(crypto.Keccak256(addresses[0][:])))
-	fmt.Println(" get cache key1", val)
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
-	val, _ = r.db.GetAccount(string(crypto.Keccak256(addresses[0][:])))
-	fmt.Println(" get cache key2", val)
 }
 
 func (d *DBRunner) UpdateDB(
@@ -223,7 +218,13 @@ func (d *DBRunner) UpdateDB(
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
 					var value []byte
+					startRead := time.Now()
 					value, err := d.db.GetAccount(randomKey)
+					if d.db.GetMPTEngine() == VERSADBEngine {
+						versaDBStorageGetLatency.Update(time.Since(startRead))
+					} else {
+						StateDBStorageGetLatency.Update(time.Since(startRead))
+					}
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
 						if err != nil {
@@ -252,12 +253,20 @@ func (d *DBRunner) UpdateDB(
 		if len(value.Account) > 0 {
 			// add new account
 			d.db.AddAccount(key, value.Account)
-			StateDBAccPutLatency.Update(time.Since(startPut))
+			if d.db.GetMPTEngine() == VERSADBEngine {
+				VersaDBAccPutLatency.Update(time.Since(startPut))
+			} else {
+				StateDBAccPutLatency.Update(time.Since(startPut))
+			}
 			d.keyCache.Add(key)
 		} else {
 			// add new storage
 			d.db.AddStorage([]byte(key), value.Keys, value.Vals)
-			StateDBStoragePutLatency.Update(time.Since(startPut))
+			if d.db.GetMPTEngine() == VERSADBEngine {
+				versaDBStoragePutLatency.Update(time.Since(startPut))
+			} else {
+				StateDBStoragePutLatency.Update(time.Since(startPut))
+			}
 		}
 		d.stat.IncPut(1)
 	}
