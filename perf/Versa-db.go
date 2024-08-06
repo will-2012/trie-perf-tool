@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
@@ -18,7 +19,6 @@ type VersaDBRunner struct {
 	rootTree     versa_db.TreeHandler
 	version      int64
 	stateRoot    common.Hash
-	//	snapDB     ethdb.Database
 }
 
 func OpenVersaDB(version int64) *VersaDBRunner {
@@ -130,36 +130,6 @@ func (v *VersaDBRunner) GetMPTEngine() string {
 	return VERSADBEngine
 }
 
-/*
-func (v *VersaDBRunner) Hash() common.Hash {
-	return  v.db.CalcRootHash()
-}
-
-func (p *VersaTrie) Put(key []byte, value []byte) error {
-	return p.trie.Insert(key, value)
-}
-
-func (p *VersaTrie) Get(key []byte) ([]byte, error) {
-	_, value, err := p.trie.Get(key)
-	return value, err
-}
-
-func (p *VersaTrie) Delete(key []byte) error {
-	return p.trie.Delete(key)
-}
-
-func (p *VersaTrie) Commit() (common.Hash, error) {
-	hash, _, err := p.trie.Commit(0)
-	return hash, err
-}
-
-func (p *VersaTrie) GetMPTEngine() string {
-	return VERSADBEngine
-}
-
-func (p *VersaTrie) GetFlattenDB() ethdb.KeyValueStore {
+func (p *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return nil
 }
-
-
-*/

@@ -37,6 +37,8 @@ type StateDatabase interface {
 	Hash() common.Hash
 
 	GetMPTEngine() string
+
+	GetFlattenDB() ethdb.KeyValueStore
 }
 
 type TrieBatch interface {

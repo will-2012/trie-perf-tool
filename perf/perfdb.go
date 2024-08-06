@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -116,29 +118,31 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 		case taskInfo := <-r.taskChan:
 			rwStart := time.Now()
 			// read, put or delete keys
-			r.UpdateAccount(taskInfo)
+			r.UpdateDB(taskInfo)
 			r.rwDuration = time.Since(rwStart)
 			r.totalRwDurations += r.rwDuration
 			// compute hash
 			hashStart := time.Now()
 			r.db.Hash()
 			r.hashDuration = time.Since(hashStart)
-			/*
-				if r.db.GetMPTEngine() == VERSADBEngine {
-					VeraTrieHashLatency.Update(r.hashDuration)
-				} else {
-					stateTrieHashLatency.Update(r.hashDuration)
-				}
-			*/
 
 			r.totalHashurations += r.hashDuration
 			// commit
+			commtStart := time.Now()
 			if _, err := r.db.Commit(); err != nil {
 				panic("failed to commit: " + err.Error())
+			} else {
+				fmt.Println("commit sucess", "block height", r.blockHeight)
+			}
+
+			r.commitDuration = time.Since(commtStart)
+			if r.db.GetMPTEngine() == VERSADBEngine {
+				stateDBCommitLatency.Update(r.commitDuration)
+			} else {
+				stateTrieHashLatency.Update(r.commitDuration)
 			}
 
 			r.blockHeight++
-			//r.commitDuration = time.Since(commitStart)
 
 		case <-ticker.C:
 			r.printStat()
@@ -157,7 +161,7 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 
 func (r *DBRunner) printAVGStat(startTime time.Time) {
 	fmt.Printf(
-		" Avg Perf metrics: %s, block height=%d elapsed: [read=%v us, write=%v ms, cal hash=%v us]\n",
+		" Avg Perf metrics: %s, block height=%d elapsed: [read =%v us, write=%v ms, cal hash=%v us]\n",
 		r.stat.CalcAverageIOStat(time.Since(startTime)),
 		r.blockHeight,
 		float64(r.totalReadCost.Microseconds())/float64(r.blockHeight),
@@ -201,7 +205,7 @@ func (r *DBRunner) InitDB() {
 	fmt.Println(" get cache key2", val)
 }
 
-func (d *DBRunner) UpdateAccount(
+func (d *DBRunner) UpdateDB(
 	taskInfo DBTask,
 ) {
 	// todo make it as config
@@ -235,40 +239,55 @@ func (d *DBRunner) UpdateAccount(
 	d.rDuration = time.Since(start)
 	d.totalReadCost += d.rDuration
 	wg.Wait()
-	/*
-		if d.db.GetMPTEngine() == VERSADBEngine {
-			VeraTrieGetTps.Update(int64(r.perfConfig.NumJobs*batchSize) / r.rDuration.Microseconds())
-		} else {
-			stateTrieGetTps.Update(int64(r.perfConfig.NumJobs*batchSize) / r.rDuration.Microseconds())
-		}
 
-	*/
+	if d.db.GetMPTEngine() == VERSADBEngine {
+		VeraDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Microseconds())
+	} else {
+		stateDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Microseconds())
+	}
 
 	start = time.Now()
 	// simulate insert Account and Storage Trie
 	for key, value := range taskInfo {
 		startPut := time.Now()
 		if len(value.Account) > 0 {
+			// add new account
 			d.db.AddAccount(key, value.Account)
 			StateDBAccPutLatency.Update(time.Since(startPut))
 			d.keyCache.Add(key)
-			fmt.Println("sucess to update account ")
 		} else {
+			// add new storage
 			d.db.AddStorage([]byte(key), value.Keys, value.Vals)
 			StateDBStoragePutLatency.Update(time.Since(startPut))
-			fmt.Println("sucess to update storage ")
 		}
 		d.stat.IncPut(1)
 	}
+
 	d.wDuration = time.Since(start)
 	d.totalWriteCost += d.wDuration
-	/*
-		if r.db.GetMPTEngine() == VERSADBEngine {
-			VeraTriePutTps.Update(int64(batchSize) / r.wDuration.Milliseconds())
-		} else {
-			stateTriePutTps.Update(int64(batchSize) / r.wDuration.Milliseconds())
+
+	if d.db.GetMPTEngine() == VERSADBEngine {
+		VeraDBPutTps.Update(int64(batchSize) / d.wDuration.Milliseconds())
+	} else {
+		stateDBPutTps.Update(int64(batchSize) / d.wDuration.Milliseconds())
+	}
+
+	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+		// simulate insert key to snap
+		snapDB := d.db.GetFlattenDB()
+		for key, value := range taskInfo {
+			if len(value.Account) > 0 {
+				// add new account
+				insertKey := common.BytesToHash([]byte(key))
+				rawdb.WriteAccountSnapshot(snapDB, insertKey, value.Account)
+			} else {
+				// add new storage
+				accHash := common.BytesToHash([]byte(key))
+				for i, k := range value.Keys {
+					rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
+				}
+			}
+			d.stat.IncPut(1)
 		}
-
-	*/
-
+	}
 }

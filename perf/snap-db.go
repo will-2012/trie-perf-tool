@@ -47,14 +47,8 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	}
 }
 
-func (v *StateDBRunner) AddAccount2(acckey string, acc *ethTypes.StateAccount) {
-	val, _ := rlp.EncodeToBytes(acc)
-	v.accTrie.MustUpdate([]byte(acckey), val)
-}
-
 func (v *StateDBRunner) AddAccount(acckey string, val []byte) error {
 	v.accTrie.MustUpdate([]byte(acckey), val)
-	v.AddSnapAccount(acckey, val)
 	return nil
 }
 
@@ -109,6 +103,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 		}
 	}
 	s.triedb.Update(root, ethTypes.EmptyRootHash, 0, s.nodes, nil)
+	s.triedb.Commit(root, false)
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 
 	return root, nil
@@ -120,6 +115,10 @@ func (s *StateDBRunner) Hash() common.Hash {
 
 func (s *StateDBRunner) GetMPTEngine() string {
 	return StateTrieEngine
+}
+
+func (p *StateDBRunner) GetFlattenDB() ethdb.KeyValueStore {
+	return p.diskdb
 }
 
 /*

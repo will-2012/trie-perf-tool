@@ -10,6 +10,9 @@ var (
 	stateTrieHashLatency = metrics.NewRegisteredTimer("statetrie/hash/latency", nil)
 	VeraTrieHashLatency  = metrics.NewRegisteredTimer("veraTrie/hash/latency", nil)
 
+	stateDBCommitLatency = metrics.NewRegisteredTimer("statedb/commit/latency", nil)
+	VeraDBCommitLatency  = metrics.NewRegisteredTimer("veradb/commit/latency", nil)
+
 	StateDBGetLatency        = metrics.NewRegisteredTimer("statedb/get/latency", nil)
 	StateDBAccPutLatency     = metrics.NewRegisteredTimer("statedb/account/put/latency", nil)
 	StateDBStoragePutLatency = metrics.NewRegisteredTimer("statedb/storage/put/latency", nil)
@@ -22,6 +25,11 @@ var (
 	stateTriePutTps      = metrics.NewRegisteredGauge("statetrie/put/tps", nil)
 	VeraTrieGetTps       = metrics.NewRegisteredGauge("veraTrie/get/tps", nil)
 	VeraTriePutTps       = metrics.NewRegisteredGauge("veraTrie/put/tps", nil)
+
+	stateDBGetTps = metrics.NewRegisteredGauge("statedb/get/tps", nil)
+	stateDBPutTps = metrics.NewRegisteredGauge("statedb/put/tps", nil)
+	VeraDBGetTps  = metrics.NewRegisteredGauge("veradb/get/tps", nil)
+	VeraDBPutTps  = metrics.NewRegisteredGauge("veradb/put/tps", nil)
 
 	failGetCount   = metrics.NewRegisteredCounter("db/get/fail", nil)
 	failWriteCount = metrics.NewRegisteredCounter("db/put/fail", nil)
