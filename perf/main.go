@@ -55,6 +55,14 @@ func main() {
 				},
 			},
 			{
+				Name:  "press-db",
+				Usage: "Press random keys into the trie database",
+				Action: func(c *cli.Context) error {
+					runPerfDB(c)
+					return nil
+				},
+			},
+			{
 				Name:  "verify-hash",
 				Usage: "verify hash root of trie database by comparing",
 				Action: func(c *cli.Context) error {
@@ -173,6 +181,29 @@ func runPerf(c *cli.Context) error {
 		stateDB = OpenStateTrie(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
 	}
 	runner := NewRunner(stateDB, parsePerfConfig(c), 1000)
+	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
+	defer cancel()
+
+	address := net.JoinHostPort(c.String("metrics.addr"), fmt.Sprintf("%d", c.Int("metrics.port")))
+	fmt.Println("Enabling stand-alone metrics HTTP endpoint", "address", address)
+	exp.Setup(address)
+
+	go metrics.CollectProcessMetrics(3 * time.Second)
+	runner.Run(ctx)
+	return nil
+}
+
+func runPerfDB(c *cli.Context) error {
+	var stateDB StateDatabase
+	engine := c.String("engine")
+	if engine == VERSADBEngine {
+		fmt.Println("start to test trie:", VERSADBEngine)
+		stateDB = OpenVersaDB(0)
+	} else if engine == StateTrieEngine {
+		dir, _ := os.Getwd()
+		stateDB = NewStateRunner(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
+	}
+	runner := NewDBRunner(stateDB, parsePerfConfig(c), 1000)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
 

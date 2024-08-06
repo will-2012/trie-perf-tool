@@ -12,8 +12,12 @@ type VersaTrie struct {
 	trie versa_tree.Tree
 }
 
-func OpenVersaTrie(version uint64, rootHash []byte) *VersaTrie {
-	t := versa_tree.OpenTree(common.Hash{}, version, rootHash, false, store.NewStore())
+func OpenVersaTrie(version int64, rootHash []byte) *VersaTrie {
+	store, _,_, err := store.Open(nil)
+	if err != nil {
+		panic(err.Error())
+	}
+	t := versa_tree.OpenTree(common.Hash{}, version, rootHash, false, store)
 	return &VersaTrie{
 		trie: t,
 	}
@@ -37,7 +41,7 @@ func (p *VersaTrie) Delete(key []byte) error {
 }
 
 func (p *VersaTrie) Commit() (common.Hash, error) {
-	hash, _, _, err := p.trie.Commit(0)
+	hash, _, err := p.trie.Commit(0)
 	return hash, err
 }
 

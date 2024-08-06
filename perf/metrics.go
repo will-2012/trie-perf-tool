@@ -10,6 +10,12 @@ var (
 	stateTrieHashLatency = metrics.NewRegisteredTimer("statetrie/hash/latency", nil)
 	VeraTrieHashLatency  = metrics.NewRegisteredTimer("veraTrie/hash/latency", nil)
 
+	StateDBGetLatency        = metrics.NewRegisteredTimer("statedb/get/latency", nil)
+	StateDBAccPutLatency     = metrics.NewRegisteredTimer("statedb/account/put/latency", nil)
+	StateDBStoragePutLatency = metrics.NewRegisteredTimer("statedb/storage/put/latency", nil)
+	VersaDBGetLatency        = metrics.NewRegisteredTimer("versadb/get/latency", nil)
+	versaDBPutLatency        = metrics.NewRegisteredTimer("versadb/put/latency", nil)
+
 	stateTrieMemoryUsage = metrics.NewRegisteredGauge("statetrie/memory/usage", nil)
 	VeraTrieMemoryUsage  = metrics.NewRegisteredGauge("veraTrie/memory/usage", nil)
 	stateTrieGetTps      = metrics.NewRegisteredGauge("statetrie/get/tps", nil)

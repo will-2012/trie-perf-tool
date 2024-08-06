@@ -13,6 +13,16 @@ import (
 	"github.com/holiman/uint256"
 )
 
+type CAKeyValue struct {
+	Keys    []string
+	Vals    []string
+	Account []byte
+}
+
+const CAStorageSize = 100
+
+type DBTask map[string]CAKeyValue
+
 type Stat struct {
 	ioStat      IOStat
 	lastIoStat  IOStat
@@ -107,6 +117,34 @@ func (s *Stat) IncDelete(num uint64) {
 }
 
 func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
+	random := rand.New(rand.NewSource(0))
+	// Create a realistic account trie to hash
+	addresses = make([][20]byte, size)
+	for i := 0; i < len(addresses); i++ {
+		data := make([]byte, 20)
+		random.Read(data)
+		rand.Seed(time.Now().UnixNano())
+		rand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
+		copy(addresses[i][:], data)
+	}
+	accounts = make([][]byte, len(addresses))
+	for i := 0; i < len(accounts); i++ {
+		var (
+			nonce = uint64(random.Int63())
+			root  = types.EmptyRootHash
+			code  = crypto.Keccak256(nil)
+		)
+		numBytes := random.Uint32() % 33 // [0, 32] bytes
+		balanceBytes := make([]byte, numBytes)
+		random.Read(balanceBytes)
+		balance := new(uint256.Int).SetBytes(balanceBytes)
+		data, _ := rlp.EncodeToBytes(&types.StateAccount{Nonce: nonce, Balance: balance, Root: root, CodeHash: code})
+		accounts[i] = data
+	}
+	return addresses, accounts
+}
+
+func makeStorage(size int) (addresses [][20]byte, accounts [][]byte) {
 	random := rand.New(rand.NewSource(0))
 	// Create a realistic account trie to hash
 	addresses = make([][20]byte, size)

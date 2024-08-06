@@ -5,6 +5,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
+// https://github.com/bnb-chain/versioned-state-database/blob/develop/db.go
+
 // Database wraps access to tries and contract code.
 type TrieDatabase interface {
 	//OpenDB(string) TrieDatabase
@@ -21,6 +23,20 @@ type TrieDatabase interface {
 	GetMPTEngine() string
 
 	GetFlattenDB() ethdb.KeyValueStore
+}
+
+type StateDatabase interface {
+	GetAccount(string) ([]byte, error)
+
+	AddAccount(key string, value []byte) error
+
+	AddStorage(owner []byte, keys []string, vals []string) error
+
+	Commit() (common.Hash, error)
+
+	Hash() common.Hash
+
+	GetMPTEngine() string
 }
 
 type TrieBatch interface {
