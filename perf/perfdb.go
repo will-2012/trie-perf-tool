@@ -224,7 +224,7 @@ func (d *DBRunner) UpdateDB(
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < batchSize/2; j++ {
+			for j := 0; j < batchSize; j++ {
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
 					var value []byte
@@ -245,28 +245,29 @@ func (d *DBRunner) UpdateDB(
 				} else {
 					fmt.Println("fail to get account key")
 				}
-				randomKey, found = d.ownerCache.RandomItem()
-				if found {
-					startRead := time.Now()
-					if key, exist := d.storageCache.Get(randomKey); exist {
-						value, err := d.db.GetStorage([]byte(randomKey), key)
-						if d.db.GetMPTEngine() == VERSADBEngine {
-							versaDBStorageGetLatency.Update(time.Since(startRead))
-						} else {
-							StateDBStorageGetLatency.Update(time.Since(startRead))
-						}
-						d.stat.IncGet(1)
-						if err != nil || value == nil {
-							if err != nil {
-								fmt.Println("fail to get key", err.Error())
+				/*
+					randomKey, found = d.ownerCache.RandomItem()
+					if found {
+						startRead := time.Now()
+						if key, exist := d.storageCache.Get(randomKey); exist {
+							value, err := d.db.GetStorage([]byte(randomKey), key)
+							if d.db.GetMPTEngine() == VERSADBEngine {
+								versaDBStorageGetLatency.Update(time.Since(startRead))
+							} else {
+								StateDBStorageGetLatency.Update(time.Since(startRead))
 							}
-							d.stat.IncGetNotExist(1)
+							d.stat.IncGet(1)
+							if err != nil || value == nil {
+								if err != nil {
+									fmt.Println("fail to get key", err.Error())
+								}
+								d.stat.IncGetNotExist(1)
+							}
 						}
+					} else {
+						fmt.Println("fail to get storage key")
 					}
-				} else {
-					fmt.Println("fail to get storage key")
-				}
-
+				*/
 			}
 		}()
 	}
