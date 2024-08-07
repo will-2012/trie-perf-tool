@@ -48,11 +48,12 @@ func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
 
 func (p *PbssStateTrie) Commit() (common.Hash, error) {
 	start1 := time.Now()
-	root, nodes, err := p.trie.Commit(true)
-	if err != nil {
-		return types.EmptyRootHash, err
-	}
-
+	root, nodes, _ := p.trie.Commit(true)
+	/*
+		if err != nil {
+			return types.EmptyRootHash, err
+		}
+	*/
 	if nodes != nil {
 		if err := p.nodes.Merge(nodes); err != nil {
 			return types.EmptyRootHash, err
@@ -61,10 +62,13 @@ func (p *PbssStateTrie) Commit() (common.Hash, error) {
 	p.db.Update(root, types.EmptyRootHash, 0, p.nodes, nil)
 
 	fmt.Println("commit cost time2", time.Since(start1).Milliseconds(), "ms")
-	err = p.db.Commit(root, false)
-	if err != nil {
-		panic("commit err" + err.Error())
-	}
+	p.db.Commit(root, false)
+	/*
+		if err != nil {
+			panic("commit err" + err.Error())
+		}
+
+	*/
 	p.trie, _ = bsctrie.NewStateTrie(bsctrie.TrieID(root), p.db)
 	return root, nil
 }

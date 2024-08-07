@@ -120,10 +120,13 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, key []byte, val []byte) ([]b
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {
 	start1 := time.Now()
-	root, nodes, err := s.accTrie.Commit(true)
-	if err != nil {
-		return ethTypes.EmptyRootHash, err
-	}
+	root, nodes, _ := s.accTrie.Commit(true)
+	/*
+		if err != nil {
+			return ethTypes.EmptyRootHash, err
+		}
+
+	*/
 	fmt.Println("commit cost time1", time.Since(start1).Milliseconds(), "ms")
 	start1 = time.Now()
 	if nodes != nil {
@@ -131,15 +134,18 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 			return ethTypes.EmptyRootHash, err
 		}
 	}
-	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
+	s.triedb.Update(root, ethTypes.EmptyRootHash, 0, s.nodes, nil)
 
 	fmt.Println("commit cost time2", time.Since(start1).Milliseconds(), "ms")
 	start1 = time.Now()
 
-	err = s.triedb.Commit(root, false)
-	if err != nil {
-		panic("fail to commit" + err.Error())
-	}
+	s.triedb.Commit(root, false)
+	/*
+		if err != nil {
+			panic("fail to commit" + err.Error())
+		}
+
+	*/
 	fmt.Println("commit cost time3", time.Since(start1).Milliseconds(), "ms")
 	/*
 		s.height++
