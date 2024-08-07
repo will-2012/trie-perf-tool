@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -19,6 +20,8 @@ type DBRunner struct {
 	lastStatInstant   time.Time
 	taskChan          chan DBTask
 	keyCache          *InsertedKeySet
+	ownerCache        *InsertedKeySet
+	storageCache      *lru.Cache[common.Hash, []byte]
 	blockHeight       uint64
 	rwDuration        time.Duration
 	rDuration         time.Duration
@@ -44,6 +47,8 @@ func NewDBRunner(
 		perfConfig:      config,
 		taskChan:        make(chan DBTask, taskBufferSize),
 		keyCache:        NewFixedSizeSet(1000000),
+		ownerCache:      NewFixedSizeSet(1000000),
+		storageCache:    lru.NewCache[common.Hash, []byte](1000000),
 	}
 
 	return runner
@@ -219,7 +224,7 @@ func (d *DBRunner) UpdateDB(
 		go func() {
 			defer wg.Done()
 			// random read of local recently cache of inserted keys
-			for j := 0; j < batchSize; j++ {
+			for j := 0; j < batchSize/2; j++ {
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
 					var value []byte
@@ -237,7 +242,32 @@ func (d *DBRunner) UpdateDB(
 						}
 						d.stat.IncGetNotExist(1)
 					}
+				} else {
+					fmt.Println("fail to get account key")
 				}
+				randomKey, found = d.ownerCache.RandomItem()
+				if found {
+					startRead := time.Now()
+					accHash := common.BytesToHash([]byte(randomKey))
+					if key, exist := d.storageCache.Get(accHash); exist {
+						value, err := d.db.GetStorage([]byte(randomKey), key)
+						if d.db.GetMPTEngine() == VERSADBEngine {
+							versaDBStorageGetLatency.Update(time.Since(startRead))
+						} else {
+							StateDBStorageGetLatency.Update(time.Since(startRead))
+						}
+						d.stat.IncGet(1)
+						if err != nil || value == nil {
+							if err != nil {
+								fmt.Println("fail to get key", err.Error())
+							}
+							d.stat.IncGetNotExist(1)
+						}
+					}
+				} else {
+					fmt.Println("fail to get storage key")
+				}
+
 			}
 		}()
 	}
@@ -273,6 +303,8 @@ func (d *DBRunner) UpdateDB(
 			} else {
 				StateDBStoragePutLatency.Update(time.Since(startPut))
 			}
+			accHash := common.BytesToHash([]byte(key))
+			d.storageCache.Add(accHash, []byte(value.Keys[2]))
 		}
 		d.stat.IncPut(1)
 	}
