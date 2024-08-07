@@ -14,12 +14,13 @@ import (
 )
 
 type StateDBRunner struct {
-	diskdb    ethdb.KeyValueStore
-	triedb    *triedb.Database
-	accTrie   *trie.StateTrie
-	nodes     *trienode.MergedNodeSet
-	stateTrie PbssStateTrie
-	height    int64
+	diskdb     ethdb.KeyValueStore
+	triedb     *triedb.Database
+	accTrie    *trie.StateTrie
+	nodes      *trienode.MergedNodeSet
+	stateTrie  PbssStateTrie
+	parentRoot common.Hash
+	height     int64
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -41,11 +42,12 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	}
 
 	return &StateDBRunner{
-		diskdb:  leveldb,
-		triedb:  triedb,
-		accTrie: accTrie,
-		nodes:   nodeSet,
-		height:  0,
+		diskdb:     leveldb,
+		triedb:     triedb,
+		accTrie:    accTrie,
+		nodes:      nodeSet,
+		height:     0,
+		parentRoot: ethTypes.EmptyRootHash,
 	}
 }
 
@@ -92,7 +94,7 @@ func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
 	}
 
-	root, nodes, err := stTrie.Commit(false)
+	root, nodes, err := stTrie.Commit(true)
 	if err != nil {
 		return ethTypes.EmptyRootHash, err
 	}
@@ -123,7 +125,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 			return ethTypes.EmptyRootHash, err
 		}
 	}
-	s.triedb.Update(root, ethTypes.EmptyRootHash, 0, s.nodes, nil)
+	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
 
 	//s.triedb.Commit(root, false)
 	s.height++
@@ -134,6 +136,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 		}
 	}
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
+	s.parentRoot = root
 	return root, nil
 }
 
