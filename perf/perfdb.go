@@ -125,6 +125,11 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 			hashStart := time.Now()
 			r.db.Hash()
 			r.hashDuration = time.Since(hashStart)
+			if r.db.GetMPTEngine() == VERSADBEngine {
+				VeraDBHashLatency.Update(r.hashDuration)
+			} else {
+				stateDBHashLatency.Update(r.hashDuration)
+			}
 
 			r.totalHashurations += r.hashDuration
 			// commit
