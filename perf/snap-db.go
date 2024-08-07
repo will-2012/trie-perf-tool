@@ -104,6 +104,13 @@ func (s *StateDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 	return rawdb.ReadStorageSnapshot(s.diskdb, common.BytesToHash(owner), common.BytesToHash(key)), nil
 }
 
+/*
+func (s *StateDBRunner) UpdateStorage(owner []byte, key []byte, val []byte) ([]byte, error) {
+
+}
+
+*/
+
 func (s *StateDBRunner) Commit() (common.Hash, error) {
 	root, nodes, err := s.accTrie.Commit(true)
 	if err != nil {
