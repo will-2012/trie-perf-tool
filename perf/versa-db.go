@@ -69,7 +69,7 @@ func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
 }
 
 func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
-	ownerHash := hashData(owner)
+	ownerHash := common.BytesToHash(owner)
 	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
@@ -104,7 +104,7 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 }
 
 func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
-	ownerHash := hashData(owner)
+	ownerHash := common.BytesToHash(owner)
 	v.lock.RLock()
 	cache, found := v.ownerStorageCache[ownerHash]
 	v.lock.RUnlock()
