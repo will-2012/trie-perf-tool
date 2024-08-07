@@ -225,3 +225,26 @@ func (s *InsertedKeySet) RandomItem() (string, bool) {
 	randomIndex := rand.Intn(len(s.items))
 	return s.items[randomIndex], true
 }
+
+// GetNRandomSets returns n slices, each containing m unique keys. No key is repeated across slices.
+func (s *InsertedKeySet) GetNRandomSets(n int, m int) ([][]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	totalItems := len(s.items)
+	if n*m > totalItems {
+		return nil, fmt.Errorf("not enough items in the set to generate %d sets of %d items", n, m)
+	}
+
+	result := make([][]string, n)
+	allIndices := rand.Perm(totalItems) // Generate a random permutation of indices
+	for i := 0; i < n; i++ {
+		set := make([]string, m)
+		for j := 0; j < m; j++ {
+			set[j] = s.items[allIndices[i*m+j]]
+		}
+		result[i] = set
+	}
+
+	return result, nil
+}

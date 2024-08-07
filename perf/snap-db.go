@@ -101,7 +101,7 @@ func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 }
 
 func (s *StateDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
-	return rawdb.ReadStorageSnapshot(s.diskdb, common.BytesToHash(owner), common.BytesToHash(key)), nil
+	return rawdb.ReadStorageSnapshot(s.diskdb, common.BytesToHash(owner), hashData(key)), nil
 }
 
 /*

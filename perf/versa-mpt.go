@@ -13,7 +13,7 @@ type VersaTrie struct {
 }
 
 func OpenVersaTrie(version int64, rootHash []byte) *VersaTrie {
-	store, _,_, err := store.Open(nil)
+	store, _, _, err := store.Open("test-versa-trie", nil)
 	if err != nil {
 		panic(err.Error())
 	}

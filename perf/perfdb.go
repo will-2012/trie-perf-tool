@@ -141,8 +141,6 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 			commtStart := time.Now()
 			if _, err := r.db.Commit(); err != nil {
 				panic("failed to commit: " + err.Error())
-			} else {
-				fmt.Println("commit sucess", "block height", r.blockHeight)
 			}
 
 			r.commitDuration = time.Since(commtStart)
@@ -153,7 +151,7 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 			}
 
 			r.blockHeight++
-
+			BlockHeight.Update(int64(r.blockHeight))
 		case <-ticker.C:
 			r.printStat()
 			printAvg++
@@ -215,16 +213,42 @@ func (d *DBRunner) UpdateDB(
 ) {
 	// todo make it as config
 	batchSize := int(d.perfConfig.BatchSize)
-
+	threadNum := d.perfConfig.NumJobs
+	var needReadStorage bool
 	var wg sync.WaitGroup
 	start := time.Now()
 	// simulate parallel read
-	for i := 0; i < d.perfConfig.NumJobs; i++ {
+	readStorageSet, err := d.ownerCache.GetNRandomSets(threadNum, batchSize/2)
+	if err == nil {
+		needReadStorage = true
+	}
+	for i := 0; i < threadNum; i++ {
 		wg.Add(1)
-		go func() {
+		go func(index int) {
 			defer wg.Done()
+			if needReadStorage {
+				for j := 0; j < batchSize/2; j++ {
+					startRead := time.Now()
+					storageKey := readStorageSet[index][j]
+					if key, exist := d.storageCache.Get(storageKey); exist {
+						value, err := d.db.GetStorage([]byte(storageKey), key)
+						if d.db.GetMPTEngine() == VERSADBEngine {
+							versaDBStorageGetLatency.Update(time.Since(startRead))
+						} else {
+							StateDBStorageGetLatency.Update(time.Since(startRead))
+						}
+						d.stat.IncGet(1)
+						if err != nil || value == nil {
+							if err != nil {
+								fmt.Println("fail to get key", err.Error())
+							}
+							d.stat.IncGetNotExist(1)
+						}
+					}
+				}
+			}
 			// random read of local recently cache of inserted keys
-			for j := 0; j < batchSize; j++ {
+			for j := 0; j < batchSize/2; j++ {
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
 					var value []byte
@@ -245,31 +269,8 @@ func (d *DBRunner) UpdateDB(
 				} else {
 					fmt.Println("fail to get account key")
 				}
-				/*
-					randomKey, found = d.ownerCache.RandomItem()
-					if found {
-						startRead := time.Now()
-						if key, exist := d.storageCache.Get(randomKey); exist {
-							value, err := d.db.GetStorage([]byte(randomKey), key)
-							if d.db.GetMPTEngine() == VERSADBEngine {
-								versaDBStorageGetLatency.Update(time.Since(startRead))
-							} else {
-								StateDBStorageGetLatency.Update(time.Since(startRead))
-							}
-							d.stat.IncGet(1)
-							if err != nil || value == nil {
-								if err != nil {
-									fmt.Println("fail to get key", err.Error())
-								}
-								d.stat.IncGetNotExist(1)
-							}
-						}
-					} else {
-						fmt.Println("fail to get storage key")
-					}
-				*/
 			}
-		}()
+		}(i)
 	}
 	wg.Wait()
 

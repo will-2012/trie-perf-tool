@@ -32,6 +32,7 @@ var (
 	stateTriePutTps      = metrics.NewRegisteredGauge("statetrie/put/tps", nil)
 	VeraTrieGetTps       = metrics.NewRegisteredGauge("veraTrie/get/tps", nil)
 	VeraTriePutTps       = metrics.NewRegisteredGauge("veraTrie/put/tps", nil)
+	BlockHeight          = metrics.NewRegisteredGauge("versa/block/height", nil)
 
 	stateDBGetTps = metrics.NewRegisteredGauge("statedb/get/tps", nil)
 	stateDBPutTps = metrics.NewRegisteredGauge("statedb/put/tps", nil)

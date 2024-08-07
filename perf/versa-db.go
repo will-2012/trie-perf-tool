@@ -29,8 +29,8 @@ type StorageCache struct {
 	stRoot  common.Hash
 }
 
-func OpenVersaDB(version int64) *VersaDBRunner {
-	db, err := versa_db.NewVersaDB(&versa_db.VersaDBConfig{
+func OpenVersaDB(path string, version int64) *VersaDBRunner {
+	db, err := versa_db.NewVersaDB(path, &versa_db.VersaDBConfig{
 		FlushInterval:  200,
 		MaxStatesInMem: 128,
 	})
@@ -75,14 +75,6 @@ func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
 
-	v.lock.Lock()
-	v.ownerStorageCache[ownerHash] = StorageCache{
-		version: v.version,
-		stRoot:  stRoot,
-	}
-
-	v.lock.Unlock()
-
 	return v.AddAccount(string(owner), val)
 }
 
@@ -100,6 +92,17 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 		panic(fmt.Sprintf("failed to commit tree, version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
 
+	v.lock.Lock()
+	v.ownerStorageCache[owner] = StorageCache{
+		version: v.version + 1,
+		stRoot:  hash,
+	}
+
+	/*
+		fmt.Println(fmt.Sprintf("success to open tree, version: %d, owner: %sroot:%s block height %d,", v.ownerStorageCache[owner].version,
+			owner.String(), v.ownerStorageCache[owner].stRoot, v.version))
+	*/
+	v.lock.Unlock()
 	return hash
 }
 
@@ -115,7 +118,7 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 
 	tHandler, err := v.db.OpenTree(v.stateHandler, cache.version, ownerHash, cache.stRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open tree, version: %d, owner: %d, err: %s", cache.version, ownerHash, err.Error())
+		return nil, fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", cache.version, ownerHash.String(), v.version, err.Error())
 	}
 	_, val, err := v.db.Get(tHandler, key)
 	return val, err

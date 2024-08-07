@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
@@ -200,7 +199,7 @@ func runPerfDB(c *cli.Context) error {
 	engine := c.String("engine")
 	if engine == VERSADBEngine {
 		fmt.Println("start to test trie:", VERSADBEngine)
-		stateDB = OpenVersaDB(0)
+		stateDB = OpenVersaDB("versa-db", 0)
 	} else if engine == StateTrieEngine {
 		dir, _ := os.Getwd()
 		stateDB = NewStateRunner(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
@@ -216,9 +215,6 @@ func runPerfDB(c *cli.Context) error {
 	//http.HandleFunc("/debug/pprof/heap", pprof.Index)
 	//http.ListenAndServe(":80", nil)
 
-	go func() {
-		_ = http.ListenAndServe("0.0.0.0:6060", nil)
-	}()
 	go metrics.CollectProcessMetrics(3 * time.Second)
 	runner.Run(ctx)
 	return nil
