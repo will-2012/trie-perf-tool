@@ -21,7 +21,7 @@ type DBRunner struct {
 	taskChan          chan DBTask
 	keyCache          *InsertedKeySet
 	ownerCache        *InsertedKeySet
-	storageCache      *lru.Cache[[]byte, []byte]
+	storageCache      *lru.Cache[string, []byte]
 	blockHeight       uint64
 	rwDuration        time.Duration
 	rDuration         time.Duration
@@ -48,7 +48,7 @@ func NewDBRunner(
 		taskChan:        make(chan DBTask, taskBufferSize),
 		keyCache:        NewFixedSizeSet(100000),
 		ownerCache:      NewFixedSizeSet(100000),
-		storageCache:    lru.NewCache[[]byte, []byte](100000),
+		storageCache:    lru.NewCache[string, []byte](100000),
 	}
 
 	return runner
@@ -248,8 +248,7 @@ func (d *DBRunner) UpdateDB(
 				randomKey, found = d.ownerCache.RandomItem()
 				if found {
 					startRead := time.Now()
-					accHash := common.BytesToHash([]byte(randomKey))
-					if key, exist := d.storageCache.Get(accHash); exist {
+					if key, exist := d.storageCache.Get(randomKey); exist {
 						value, err := d.db.GetStorage([]byte(randomKey), key)
 						if d.db.GetMPTEngine() == VERSADBEngine {
 							versaDBStorageGetLatency.Update(time.Since(startRead))
@@ -303,7 +302,7 @@ func (d *DBRunner) UpdateDB(
 			} else {
 				StateDBStoragePutLatency.Update(time.Since(startPut))
 			}
-			d.storageCache.Add([]byte(key), []byte(value.Keys[2]))
+			d.storageCache.Add(key, []byte(value.Keys[2]))
 			d.ownerCache.Add(key)
 		}
 		d.stat.IncPut(1)
