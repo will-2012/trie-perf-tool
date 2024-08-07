@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"path/filepath"
 	"time"
@@ -211,6 +213,8 @@ func runPerfDB(c *cli.Context) error {
 	fmt.Println("Enabling stand-alone metrics HTTP endpoint", "address", address)
 	exp.Setup(address)
 
+	http.HandleFunc("/debug/pprof/heap", pprof.Index)
+	http.ListenAndServe(":80", nil)
 	go metrics.CollectProcessMetrics(3 * time.Second)
 	runner.Run(ctx)
 	return nil
