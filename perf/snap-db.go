@@ -127,14 +127,16 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	}
 	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
 
-	//s.triedb.Commit(root, false)
+	s.triedb.Commit(root, false)
+
 	s.height++
-	if s.height%500 == 0 {
+	if s.height%100 == 0 {
 		err = s.triedb.Commit(root, false)
 		if err != nil {
 			panic("fail to commit" + err.Error())
 		}
 	}
+
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 	s.parentRoot = root
 	return root, nil
