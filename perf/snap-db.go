@@ -19,6 +19,7 @@ type StateDBRunner struct {
 	accTrie   *trie.StateTrie
 	nodes     *trienode.MergedNodeSet
 	stateTrie PbssStateTrie
+	height    int64
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -44,6 +45,7 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		triedb:  triedb,
 		accTrie: accTrie,
 		nodes:   nodeSet,
+		height:  0,
 	}
 }
 
@@ -124,9 +126,14 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	s.triedb.Update(root, ethTypes.EmptyRootHash, 0, s.nodes, nil)
 
 	//s.triedb.Commit(root, false)
-
+	s.height++
+	if s.height%500 == 0 {
+		err = s.triedb.Commit(root, false)
+		if err != nil {
+			panic("fail to commit" + err.Error())
+		}
+	}
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
-
 	return root, nil
 }
 
