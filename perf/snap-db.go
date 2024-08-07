@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -116,10 +119,13 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, key []byte, val []byte) ([]b
 */
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {
+	start1 := time.Now()
 	root, nodes, err := s.accTrie.Commit(true)
 	if err != nil {
 		return ethTypes.EmptyRootHash, err
 	}
+	fmt.Println("commit cost time1", time.Since(start1).Milliseconds(), "ms")
+	start1 = time.Now()
 	if nodes != nil {
 		if err := s.nodes.Merge(nodes); err != nil {
 			return ethTypes.EmptyRootHash, err
@@ -127,15 +133,24 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	}
 	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
 
-	//s.triedb.Commit(root, false)
+	fmt.Println("commit cost time2", time.Since(start1).Milliseconds(), "ms")
+	start1 = time.Now()
 
-	s.height++
-	if s.height%100 == 0 {
-		err = s.triedb.Commit(root, false)
-		if err != nil {
-			panic("fail to commit" + err.Error())
-		}
+	err = s.triedb.Commit(root, false)
+	if err != nil {
+		panic("fail to commit" + err.Error())
 	}
+	fmt.Println("commit cost time3", time.Since(start1).Milliseconds(), "ms")
+	/*
+		s.height++
+		if s.height%100 == 0 {
+			err = s.triedb.Commit(root, false)
+			if err != nil {
+				panic("fail to commit" + err.Error())
+			}
+		}
+
+	*/
 
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 	s.parentRoot = root

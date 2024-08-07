@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,6 +47,7 @@ func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
 }
 
 func (p *PbssStateTrie) Commit() (common.Hash, error) {
+	start1 := time.Now()
 	root, nodes, err := p.trie.Commit(true)
 	if err != nil {
 		return types.EmptyRootHash, err
@@ -56,7 +60,7 @@ func (p *PbssStateTrie) Commit() (common.Hash, error) {
 	}
 	p.db.Update(root, types.EmptyRootHash, 0, p.nodes, nil)
 	p.trie, _ = bsctrie.NewStateTrie(bsctrie.TrieID(root), p.db)
-
+	fmt.Println("commit cost time2", time.Since(start1).Milliseconds(), "ms")
 	return root, nil
 }
 
