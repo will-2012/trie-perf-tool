@@ -23,6 +23,7 @@ type VersaDBRunner struct {
 
 func OpenVersaDB(version int64) *VersaDBRunner {
 	db, err := versa_db.NewVersaDB(&versa_db.VersaDBConfig{
+		StoreDirectory: "./state",
 		FlushInterval:  200,
 		MaxStatesInMem: 128,
 	})

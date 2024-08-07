@@ -132,7 +132,7 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 			if _, err := r.db.Commit(); err != nil {
 				panic("failed to commit: " + err.Error())
 			} else {
-				fmt.Println("commit sucess", "block height", r.blockHeight)
+				// fmt.Println("commit sucess", "block height", r.blockHeight)
 			}
 
 			r.commitDuration = time.Since(commtStart)
@@ -236,9 +236,10 @@ func (d *DBRunner) UpdateDB(
 			}
 		}()
 	}
+
+	wg.Wait()
 	d.rDuration = time.Since(start)
 	d.totalReadCost += d.rDuration
-	wg.Wait()
 
 	if d.db.GetMPTEngine() == VERSADBEngine {
 		VeraDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Microseconds())
