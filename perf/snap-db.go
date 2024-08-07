@@ -127,7 +127,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	}
 	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
 
-	s.triedb.Commit(root, false)
+	//s.triedb.Commit(root, false)
 
 	s.height++
 	if s.height%100 == 0 {
