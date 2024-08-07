@@ -122,7 +122,9 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 		}
 	}
 	s.triedb.Update(root, ethTypes.EmptyRootHash, 0, s.nodes, nil)
-	s.triedb.Commit(root, false)
+
+	//s.triedb.Commit(root, false)
+
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 
 	return root, nil
