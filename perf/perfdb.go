@@ -236,10 +236,11 @@ func (d *DBRunner) UpdateDB(
 			}
 		}()
 	}
-	d.rDuration = time.Since(start)
-	d.totalReadCost += d.rDuration
 	wg.Wait()
 
+	d.rDuration = time.Since(start)
+	d.totalReadCost += d.rDuration
+	
 	if d.db.GetMPTEngine() == VERSADBEngine {
 		VeraDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Microseconds())
 	} else {
