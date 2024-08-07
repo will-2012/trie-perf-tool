@@ -216,7 +216,9 @@ func runPerfDB(c *cli.Context) error {
 	//http.HandleFunc("/debug/pprof/heap", pprof.Index)
 	//http.ListenAndServe(":80", nil)
 
-	_ = http.ListenAndServe("0.0.0.0:6061", nil)
+	go func() {
+		_ = http.ListenAndServe("0.0.0.0:6060", nil)
+	}()
 	go metrics.CollectProcessMetrics(3 * time.Second)
 	runner.Run(ctx)
 	return nil
