@@ -21,7 +21,7 @@ type DBRunner struct {
 	taskChan          chan DBTask
 	keyCache          *InsertedKeySet
 	ownerCache        *InsertedKeySet
-	storageCache      *lru.Cache[common.Hash, []byte]
+	storageCache      *lru.Cache[[]byte, []byte]
 	blockHeight       uint64
 	rwDuration        time.Duration
 	rDuration         time.Duration
@@ -48,7 +48,7 @@ func NewDBRunner(
 		taskChan:        make(chan DBTask, taskBufferSize),
 		keyCache:        NewFixedSizeSet(100000),
 		ownerCache:      NewFixedSizeSet(100000),
-		storageCache:    lru.NewCache[common.Hash, []byte](100000),
+		storageCache:    lru.NewCache[[]byte, []byte](100000),
 	}
 
 	return runner
@@ -303,8 +303,7 @@ func (d *DBRunner) UpdateDB(
 			} else {
 				StateDBStoragePutLatency.Update(time.Since(startPut))
 			}
-			accHash := common.BytesToHash([]byte(key))
-			d.storageCache.Add(accHash, []byte(value.Keys[2]))
+			d.storageCache.Add([]byte(key), []byte(value.Keys[2]))
 			d.ownerCache.Add(key)
 		}
 		d.stat.IncPut(1)
