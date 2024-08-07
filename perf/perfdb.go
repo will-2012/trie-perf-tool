@@ -46,9 +46,9 @@ func NewDBRunner(
 		lastStatInstant: time.Now(),
 		perfConfig:      config,
 		taskChan:        make(chan DBTask, taskBufferSize),
-		keyCache:        NewFixedSizeSet(1000000),
-		ownerCache:      NewFixedSizeSet(1000000),
-		storageCache:    lru.NewCache[common.Hash, []byte](1000000),
+		keyCache:        NewFixedSizeSet(100000),
+		ownerCache:      NewFixedSizeSet(100000),
+		storageCache:    lru.NewCache[common.Hash, []byte](100000),
 	}
 
 	return runner
@@ -305,6 +305,7 @@ func (d *DBRunner) UpdateDB(
 			}
 			accHash := common.BytesToHash([]byte(key))
 			d.storageCache.Add(accHash, []byte(value.Keys[2]))
+			d.ownerCache.Add(key)
 		}
 		d.stat.IncPut(1)
 	}
