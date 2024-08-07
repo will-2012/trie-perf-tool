@@ -76,14 +76,14 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
 			}
 			/*
-			for i := 0; i < int(batchSize)/2; i++ {
-				randomStr := generateValue(32, 32)
-				randomHash := common.BytesToHash(randomStr)
-				path := generateValue(0, 64)
-				taskMap[string(storageTrieNodeKey(randomHash, path))] = generateValue(7, 16)
-			}
+				for i := 0; i < int(batchSize)/2; i++ {
+					randomStr := generateValue(32, 32)
+					randomHash := common.BytesToHash(randomStr)
+					path := generateValue(0, 64)
+					taskMap[string(storageTrieNodeKey(randomHash, path))] = generateValue(7, 16)
+				}
 
-			 */
+			*/
 			taskChan <- taskMap
 		}
 	}
@@ -156,7 +156,7 @@ func (r *Runner) runInternal(ctx context.Context) {
 			r.totalHashurations += r.hashDuration
 			// commit
 			commitStart := time.Now()
-			if r.db.GetMPTEngine() == PbssRawTrieEngine {
+			if r.db.GetMPTEngine() == StateTrieEngine {
 				if _, err := r.db.Commit(); err != nil {
 					panic("failed to commit: " + err.Error())
 				}
