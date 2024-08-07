@@ -70,13 +70,13 @@ func generateStorageTasks(ctx context.Context, taskChan chan<- DBTask, batchSize
 			taskMap := make(DBTask, batchSize)
 			random := mathrand.New(mathrand.NewSource(0))
 
-			address, accounts := makeAccounts(int(batchSize) - CAStorageSize)
+			address, accounts := makeAccounts(int(batchSize) - CAStorageNum)
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = CAKeyValue{
 					Account: accounts[i]}
 			}
 
-			CAAccount := make([][20]byte, CAStorageSize)
+			CAAccount := make([][20]byte, CAStorageNum)
 			for i := 0; i < len(CAAccount); i++ {
 				data := make([]byte, 20)
 				random.Read(data)
@@ -137,9 +137,9 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 
 			r.commitDuration = time.Since(commtStart)
 			if r.db.GetMPTEngine() == VERSADBEngine {
-				stateDBCommitLatency.Update(r.commitDuration)
+				VeraDBCommitLatency.Update(r.commitDuration)
 			} else {
-				stateTrieHashLatency.Update(r.commitDuration)
+				stateDBCommitLatency.Update(r.commitDuration)
 			}
 
 			r.blockHeight++
@@ -221,9 +221,9 @@ func (d *DBRunner) UpdateDB(
 					startRead := time.Now()
 					value, err := d.db.GetAccount(randomKey)
 					if d.db.GetMPTEngine() == VERSADBEngine {
-						versaDBStorageGetLatency.Update(time.Since(startRead))
+						VersaDBAccGetLatency.Update(time.Since(startRead))
 					} else {
-						StateDBStorageGetLatency.Update(time.Since(startRead))
+						StateDBAccGetLatency.Update(time.Since(startRead))
 					}
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
@@ -240,7 +240,7 @@ func (d *DBRunner) UpdateDB(
 
 	d.rDuration = time.Since(start)
 	d.totalReadCost += d.rDuration
-	
+
 	if d.db.GetMPTEngine() == VERSADBEngine {
 		VeraDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Microseconds())
 	} else {
