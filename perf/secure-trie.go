@@ -59,8 +59,13 @@ func (p *PbssStateTrie) Commit() (common.Hash, error) {
 		}
 	}
 	p.db.Update(root, types.EmptyRootHash, 0, p.nodes, nil)
-	p.trie, _ = bsctrie.NewStateTrie(bsctrie.TrieID(root), p.db)
+
 	fmt.Println("commit cost time2", time.Since(start1).Milliseconds(), "ms")
+	err = p.db.Commit(root, false)
+	if err != nil {
+		panic("commit err" + err.Error())
+	}
+	p.trie, _ = bsctrie.NewStateTrie(bsctrie.TrieID(root), p.db)
 	return root, nil
 }
 
