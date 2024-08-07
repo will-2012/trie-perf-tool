@@ -39,13 +39,10 @@ func OpenPbssDB(dataDir string, root common.Hash) *PbssRawTrie {
 }
 
 func (p *PbssRawTrie) Commit() (common.Hash, error) {
-	root, nodes := p.trie.Commit(true)
-	/*
-		if err != nil {
-			fmt.Println("commit err", err)
-			return types.EmptyRootHash, err
-		}
-	*/
+	root, nodes, err := p.trie.Commit(true)
+	if err != nil {
+		return types.EmptyRootHash, err
+	}
 	if nodes != nil {
 		if err := p.nodes.Merge(nodes); err != nil {
 			return types.EmptyRootHash, err

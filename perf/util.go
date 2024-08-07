@@ -19,7 +19,10 @@ type CAKeyValue struct {
 	Account []byte
 }
 
-const CAStorageSize = 10
+const (
+	CAStorageSize = 30
+	CAStorageNum  = 10
+)
 
 type DBTask map[string]CAKeyValue
 

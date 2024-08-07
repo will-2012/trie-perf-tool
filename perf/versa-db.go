@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 
 	versa_db "versioned-state-database"
 
@@ -14,11 +15,18 @@ import (
 )
 
 type VersaDBRunner struct {
-	db           *versa_db.VersaDB
-	stateHandler versa_db.StateHandler
-	rootTree     versa_db.TreeHandler
-	version      int64
-	stateRoot    common.Hash
+	db                *versa_db.VersaDB
+	stateHandler      versa_db.StateHandler
+	rootTree          versa_db.TreeHandler
+	version           int64
+	stateRoot         common.Hash
+	ownerStorageCache map[common.Hash]StorageCache
+	lock              sync.RWMutex
+}
+
+type StorageCache struct {
+	version int64
+	stRoot  common.Hash
 }
 
 func OpenVersaDB(version int64) *VersaDBRunner {
@@ -39,11 +47,12 @@ func OpenVersaDB(version int64) *VersaDBRunner {
 	}
 	fmt.Println("init version db sucess")
 	return &VersaDBRunner{
-		db:           db,
-		version:      version,
-		stateRoot:    ethTypes.EmptyRootHash,
-		rootTree:     rootTree,
-		stateHandler: stateHanlder,
+		db:                db,
+		version:           version,
+		stateRoot:         ethTypes.EmptyRootHash,
+		rootTree:          rootTree,
+		stateHandler:      stateHanlder,
+		ownerStorageCache: make(map[common.Hash]StorageCache),
 	}
 }
 
@@ -60,10 +69,20 @@ func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
 }
 
 func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
-	stRoot := v.makeStorageTrie(hashData(owner), keys, vals)
+	ownerHash := hashData(owner)
+	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
+
+	v.lock.Lock()
+	v.ownerStorageCache[ownerHash] = StorageCache{
+		version: v.version,
+		stRoot:  stRoot,
+	}
+
+	v.lock.Unlock()
+
 	return v.AddAccount(string(owner), val)
 }
 
@@ -82,6 +101,24 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	}
 
 	return hash
+}
+
+func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
+	ownerHash := hashData(owner)
+	v.lock.RLock()
+	cache, found := v.ownerStorageCache[ownerHash]
+	v.lock.RUnlock()
+
+	if !found {
+		return nil, fmt.Errorf("owner not found in cache")
+	}
+
+	tHandler, err := v.db.OpenTree(v.stateHandler, cache.version, ownerHash, cache.stRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open tree, version: %d, owner: %d, err: %s", cache.version, ownerHash, err.Error())
+	}
+	_, val, err := v.db.Get(tHandler, key)
+	return val, err
 }
 
 func (v *VersaDBRunner) Commit() (common.Hash, error) {

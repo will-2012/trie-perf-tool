@@ -72,7 +72,10 @@ func hashData(input []byte) common.Hash {
 }
 
 func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
-	stRoot := v.makeStorageTrie(hashData(owner), keys, vals)
+	stRoot, err := v.makeStorageTrie(hashData(owner), keys, vals)
+	if err != nil {
+		return err
+	}
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
@@ -80,23 +83,32 @@ func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 	return nil
 }
 
-func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) common.Hash {
+func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) (common.Hash, error) {
 	id := trie.StorageTrieID(ethTypes.EmptyRootHash, owner, ethTypes.EmptyRootHash)
 	stTrie, _ := trie.NewStateTrie(id, v.triedb)
 	for i, k := range keys {
 		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
 	}
 
-	root, nodes := stTrie.Commit(false)
+	root, nodes, err := stTrie.Commit(false)
+	if err != nil {
+		return ethTypes.EmptyRootHash, err
+	}
 	if nodes != nil {
 		v.nodes.Merge(nodes)
 	}
-	return root
+	return root, nil
+}
+
+func (s *StateDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
+	return rawdb.ReadStorageSnapshot(s.diskdb, common.BytesToHash(owner), common.BytesToHash(key)), nil
 }
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {
-	root, nodes := s.accTrie.Commit(true)
-
+	root, nodes, err := s.accTrie.Commit(true)
+	if err != nil {
+		return ethTypes.EmptyRootHash, err
+	}
 	if nodes != nil {
 		if err := s.nodes.Merge(nodes); err != nil {
 			return ethTypes.EmptyRootHash, err

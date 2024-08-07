@@ -70,13 +70,13 @@ func generateStorageTasks(ctx context.Context, taskChan chan<- DBTask, batchSize
 			taskMap := make(DBTask, batchSize)
 			random := mathrand.New(mathrand.NewSource(0))
 
-			address, accounts := makeAccounts(int(batchSize) - 10)
+			address, accounts := makeAccounts(int(batchSize) - CAStorageSize)
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = CAKeyValue{
 					Account: accounts[i]}
 			}
 
-			CAAccount := make([][20]byte, 10)
+			CAAccount := make([][20]byte, CAStorageSize)
 			for i := 0; i < len(CAAccount); i++ {
 				data := make([]byte, 20)
 				random.Read(data)
