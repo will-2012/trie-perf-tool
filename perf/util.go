@@ -20,7 +20,7 @@ type CAKeyValue struct {
 }
 
 const (
-	CAStorageSize = 1000000
+	CAStorageSize = 100
 	CAStorageNum  = 3
 )
 
