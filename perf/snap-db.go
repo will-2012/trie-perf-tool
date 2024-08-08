@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"math/rand"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -8,19 +11,22 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/trienode"
+	"github.com/ethereum/go-ethereum/trie/triestate"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
 type StateDBRunner struct {
-	diskdb     ethdb.KeyValueStore
-	triedb     *triedb.Database
-	accTrie    *trie.StateTrie
-	nodes      *trienode.MergedNodeSet
-	stateTrie  PbssStateTrie
-	parentRoot common.Hash
-	height     int64
+	diskdb         ethdb.KeyValueStore
+	triedb         *triedb.Database
+	accTrie        *trie.StateTrie
+	nodes          *trienode.MergedNodeSet
+	stateTrie      PbssStateTrie
+	parentRoot     common.Hash
+	height         int64
+	accountsOrigin map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
+	storagesOrigin map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp forma
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -41,14 +47,51 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		panic("create leveldb err")
 	}
 
-	return &StateDBRunner{
-		diskdb:     leveldb,
-		triedb:     triedb,
-		accTrie:    accTrie,
-		nodes:      nodeSet,
-		height:     0,
-		parentRoot: ethTypes.EmptyRootHash,
+	s := &StateDBRunner{
+		diskdb:         leveldb,
+		triedb:         triedb,
+		accTrie:        accTrie,
+		nodes:          nodeSet,
+		height:         0,
+		parentRoot:     ethTypes.EmptyRootHash,
+		accountsOrigin: make(map[common.Address][]byte),
+		storagesOrigin: make(map[common.Address]map[common.Hash][]byte),
 	}
+
+	// Initialize with 2 random elements
+	s.initializeAccountsOrigin(1)
+	s.initializeStoragesOrigin(1)
+
+	return s
+}
+
+// Initialize accountsOrigin with n random elements
+func (v *StateDBRunner) initializeAccountsOrigin(n int) {
+	for i := 0; i < n; i++ {
+		addr := common.BytesToAddress(randBytes(20))
+		data := randBytes(32)
+		v.accountsOrigin[addr] = data
+	}
+}
+
+// Initialize storagesOrigin with n random elements
+func (v *StateDBRunner) initializeStoragesOrigin(n int) {
+	for i := 0; i < n; i++ {
+		addr := common.BytesToAddress(randBytes(20))
+		v.storagesOrigin[addr] = make(map[common.Hash][]byte)
+		for j := 0; j < 2; j++ { // Assume each account has 2 storage items
+			key := common.BytesToHash(randBytes(32))
+			val := randBytes(6)
+			v.storagesOrigin[addr][key] = val
+		}
+	}
+}
+
+// Helper function to generate random bytes
+func randBytes(n int) []byte {
+	b := make([]byte, n)
+	rand.Read(b)
+	return b
 }
 
 func (v *StateDBRunner) AddAccount(acckey string, val []byte) error {
@@ -125,18 +168,17 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 			return ethTypes.EmptyRootHash, err
 		}
 	}
-	s.triedb.Update(root, s.parentRoot, 0, s.nodes, nil)
 
-	//s.triedb.Commit(root, false)
-	s.height++
-	if s.height%500 == 0 {
-		err = s.triedb.Commit(root, false)
-		if err != nil {
-			panic("fail to commit" + err.Error())
-		}
+	set := triestate.New(s.accountsOrigin, s.storagesOrigin, nil)
+	err = s.triedb.Update(root, s.parentRoot, uint64(s.height), s.nodes, set)
+	if err != nil {
+		fmt.Println("trie update err", err.Error())
 	}
+
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 	s.parentRoot = root
+	s.height++
+	s.nodes = trienode.NewMergedNodeSet()
 	return root, nil
 }
 
