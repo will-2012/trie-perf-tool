@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	versa_db "versioned-state-database"
 
@@ -22,7 +23,11 @@ type VersaDBRunner struct {
 	stateRoot         common.Hash
 	ownerHandlerCache map[common.Hash]versa_db.TreeHandler
 	ownerStorageCache map[common.Hash]StorageCache
+	handlerLock       sync.RWMutex
 	lock              sync.RWMutex
+	TreeOpenStatus    *OpenedTreeSet
+	treeOpenLocks     map[common.Hash]*sync.Mutex
+	//	storageOwners     []common.Hash // Global slice for storage owners
 }
 
 type StorageCache struct {
@@ -47,6 +52,7 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		panic(err)
 	}
 	fmt.Println("init version db sucess")
+
 	return &VersaDBRunner{
 		db:                db,
 		version:           version,
@@ -55,6 +61,8 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versa_db.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
+		TreeOpenStatus:    NewOpenedTreeSet(),
+		treeOpenLocks:     make(map[common.Hash]*sync.Mutex),
 	}
 }
 
@@ -95,7 +103,6 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	}
 
 	v.lock.Lock()
-	v.ownerHandlerCache[owner] = tHandler
 	v.ownerStorageCache[owner] = StorageCache{
 		version: v.version + 1,
 		stRoot:  hash,
@@ -104,27 +111,40 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	return hash
 }
 
+func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
+	// Initialize ownerLocks using the global storageOwners slice
+	for _, ownerHash := range owners {
+		v.treeOpenLocks[ownerHash] = &sync.Mutex{}
+	}
+}
+
 // UpdateStorage  update batch k,v of storage trie
 func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []string) error {
 	var err error
 	ownerHash := common.BytesToHash(owner)
 	var tHandler versa_db.TreeHandler
-	// try to get version and root from cache first
-	v.lock.RLock()
-	cache, exist := v.ownerStorageCache[ownerHash]
-	v.lock.RUnlock()
-	if !exist {
-		// todo
-	} else {
-		versionNum := cache.version
-		stRoot := cache.stRoot
-		tHandler, err = v.db.OpenTree(v.stateHandler, versionNum, ownerHash, stRoot)
-		if err != nil {
-			return fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
-				ownerHash.String(), v.version, err.Error())
+
+	v.handlerLock.RLock()
+	tHandler, found := v.ownerHandlerCache[ownerHash]
+	v.handlerLock.RUnlock()
+	if !found {
+		// try to get version and root from cache first
+		v.lock.RLock()
+		cache, exist := v.ownerStorageCache[ownerHash]
+		v.lock.RUnlock()
+		if !exist {
+			// todo
+			fmt.Println("fail to version and root from cache")
+		} else {
+			versionNum := cache.version
+			stRoot := cache.stRoot
+			tHandler, err = v.db.OpenTree(v.stateHandler, versionNum, ownerHash, stRoot)
+			if err != nil {
+				return fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
+					ownerHash.String(), v.version, err.Error())
+			}
 		}
 	}
-
 	for i := 0; i < len(keys) && i < len(values); i++ {
 		err = v.db.Put(tHandler, []byte(keys[i]), []byte(values[i]))
 		if err != nil {
@@ -137,13 +157,17 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 		panic(fmt.Sprintf("failed to commit tree, version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
 
+	// handler is unuseful after commit
+	v.handlerLock.Lock()
+	delete(v.ownerHandlerCache, ownerHash)
+	v.handlerLock.Unlock()
+
 	v.lock.Lock()
 	v.ownerStorageCache[ownerHash] = StorageCache{
 		version: v.version + 1,
 		stRoot:  hash,
 	}
 	// update the cache for read
-	v.ownerHandlerCache[ownerHash] = tHandler
 	v.lock.Unlock()
 
 	return nil
@@ -151,10 +175,9 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 
 func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 	ownerHash := common.BytesToHash(owner)
-	v.lock.RLock()
+	v.handlerLock.RLock()
 	tHandler, found := v.ownerHandlerCache[ownerHash]
-	v.lock.RUnlock()
-
+	v.handlerLock.RUnlock()
 	if !found {
 		fmt.Println("fail to get storage hanlder in cache")
 		var stRoot common.Hash
@@ -183,21 +206,98 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 			stRoot = cache.stRoot
 		}
 
-		tHandler, err = v.db.OpenTree(v.stateHandler, versionNum, ownerHash, stRoot)
+		// Check if the owner is in the opened
+		handler, err := v.tryGetTreeLock(ownerHash, stRoot, versionNum)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
-				ownerHash.String(), v.version, err.Error())
+			return nil, err
 		}
-		// update the cache for next read
-		v.ownerHandlerCache[ownerHash] = tHandler
+		tHandler = *handler
+		/*
+			if v.TreeOpenStatus.Contains(ownerHash) {
+				fmt.Println("Owner is already in open state:", ownerHash.String(), "try to get the handler for 3 times")
+				for i := 0; i < 3; i++ {
+					time.Sleep(300 * time.Microsecond)
+					v.handlerLock.RLock()
+					tHandler, found = v.ownerHandlerCache[ownerHash]
+					v.handlerLock.RUnlock()
+					if found {
+						fmt.Println("success to get the handler")
+						break
+					}
+				}
+			} else {
+				// using tree lock to control in case of "can't reopen tree on same state" error
+
+			}
+
+		*/
 	}
 	_, val, err := v.db.Get(tHandler, key)
-	if found {
+	if found && err != nil {
 		fmt.Println("failed to read key using caching tree hanlder, err:", err.Error())
 	}
 	return val, err
 }
 
+func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum int64) (*versa_db.TreeHandler, error) {
+	var tHandler versa_db.TreeHandler
+	var found bool
+	var err error
+
+	getOpenTreeLock := v.treeOpenLocks[ownerHash].TryLock()
+	if found {
+		return &tHandler, nil
+	}
+	if !getOpenTreeLock {
+		fmt.Println("storage trie is opening :", ownerHash.String(), "version", versionNum,
+			"try to get the handler for 3 times")
+		start := time.Now()
+		num := 0
+		for i := 0; i < 20; i++ {
+			num++
+			v.handlerLock.RLock()
+			tHandler, found = v.ownerHandlerCache[ownerHash]
+			v.handlerLock.RUnlock()
+			if found {
+				fmt.Println("success to get the handler after waiting, owner hash", ownerHash, "version",
+					versionNum)
+				return &tHandler, nil
+			}
+			time.Sleep(300 * time.Microsecond)
+		}
+		fmt.Println("wait fail", "cost time", time.Since(start).Microseconds(), "us", "wait time", num,
+			"owner", ownerHash, "height", v.version)
+		time.Sleep(300 * time.Microsecond)
+		// open tree should cost less than 6000 us
+		panic("fail to get the handler after sleeping:" + ownerHash.String() + string(v.version))
+	} else {
+		v.handlerLock.RLock()
+		tHandler, found = v.ownerHandlerCache[ownerHash]
+		v.handlerLock.RUnlock()
+		if found {
+			return &tHandler, nil
+		}
+		start := time.Now()
+		tHandler, err = v.db.OpenTree(v.stateHandler, versionNum, ownerHash, stRoot)
+		fmt.Println("lock on tree owner hash:", ownerHash, "version", versionNum,
+			"cost time", time.Since(start).Microseconds(), "us", "version2", v.version)
+		if err != nil {
+			v.treeOpenLocks[ownerHash].Unlock()
+			return nil, fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
+				ownerHash.String(), v.version, err.Error())
+		}
+		fmt.Printf("success open tree,version: %d, owner: %s, block height %d \n", versionNum,
+			ownerHash.String(), v.version)
+
+		// update the handler cache for next read
+		v.handlerLock.Lock()
+		fmt.Println("set handler cache", "owner hash", ownerHash, "Version", versionNum)
+		v.ownerHandlerCache[ownerHash] = tHandler
+		v.handlerLock.Unlock()
+		v.treeOpenLocks[ownerHash].Unlock()
+	}
+	return &tHandler, nil
+}
 func (v *VersaDBRunner) Commit() (common.Hash, error) {
 	hash, err := v.db.Commit(v.rootTree)
 	if err != nil {
@@ -230,6 +330,7 @@ func (v *VersaDBRunner) Commit() (common.Hash, error) {
 	}
 
 	v.ownerHandlerCache = make(map[common.Hash]versa_db.TreeHandler)
+	//v.TreeOpenStatus.Reset()
 	return hash, nil
 }
 

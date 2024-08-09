@@ -31,6 +31,7 @@ type StateDBRunner struct {
 	stateRoot         common.Hash
 	ownerStorageCache map[common.Hash]common.Hash
 	lock              sync.RWMutex
+	//ownerStorageTrieCache map[common.Hash]trie.StateTrie
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -52,14 +53,15 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	}
 
 	s := &StateDBRunner{
-		diskdb:         leveldb,
-		triedb:         triedb,
-		accTrie:        accTrie,
-		nodes:          nodeSet,
-		height:         0,
-		parentRoot:     ethTypes.EmptyRootHash,
-		accountsOrigin: make(map[common.Address][]byte),
-		storagesOrigin: make(map[common.Address]map[common.Hash][]byte),
+		diskdb:            leveldb,
+		triedb:            triedb,
+		accTrie:           accTrie,
+		nodes:             nodeSet,
+		height:            0,
+		parentRoot:        ethTypes.EmptyRootHash,
+		accountsOrigin:    make(map[common.Address][]byte),
+		storagesOrigin:    make(map[common.Address]map[common.Hash][]byte),
+		ownerStorageCache: make(map[common.Hash]common.Hash),
 	}
 
 	// Initialize with 2 random elements
@@ -122,7 +124,7 @@ func hashData(input []byte) common.Hash {
 }
 
 func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
-	stRoot, err := v.makeStorageTrie(hashData(owner), keys, vals)
+	stRoot, err := v.makeStorageTrie(common.BytesToHash(owner), keys, vals)
 	if err != nil {
 		return err
 	}
@@ -194,6 +196,10 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	s.lock.Unlock()
 
 	return err
+}
+
+func (s *StateDBRunner) InitStorage(owners []common.Hash) {
+	return
 }
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {

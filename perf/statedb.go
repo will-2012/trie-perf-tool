@@ -43,6 +43,8 @@ type StateDatabase interface {
 	GetMPTEngine() string
 
 	GetFlattenDB() ethdb.KeyValueStore
+
+	InitStorage(owners []common.Hash)
 }
 
 type TrieBatch interface {

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -23,7 +24,7 @@ const (
 	CAStorageSize      = 100
 	CAStorageUpdateNum = 100
 	CAStorageTrieNum   = 10
-	CAStorageInitSize  = 1000000
+	CAStorageInitSize  = 10000000
 )
 
 type DBTask map[string]CAKeyValue
@@ -249,4 +250,46 @@ func (s *InsertedKeySet) GetNRandomSets(n int, m int) ([][]string, error) {
 	}
 
 	return result, nil
+}
+
+// OpenedTreeSet is a thread-safe set structure that stores unique owner hashes for opened trees.
+type OpenedTreeSet struct {
+	data map[common.Hash]struct{}
+	lock sync.RWMutex
+}
+
+// NewOpenedTreeSet creates a new OpenedTreeSet instance.
+func NewOpenedTreeSet() *OpenedTreeSet {
+	return &OpenedTreeSet{
+		data: make(map[common.Hash]struct{}),
+	}
+}
+
+// Add inserts a new owner hash into the set with a write lock.
+func (ots *OpenedTreeSet) Add(owner common.Hash) {
+	ots.lock.Lock()
+	defer ots.lock.Unlock()
+	ots.data[owner] = struct{}{}
+}
+
+// Remove deletes an owner hash from the set with a write lock.
+func (ots *OpenedTreeSet) Remove(owner common.Hash) {
+	ots.lock.Lock()
+	defer ots.lock.Unlock()
+	delete(ots.data, owner)
+}
+
+// Contains checks if an owner hash is present in the set with a read lock.
+func (ots *OpenedTreeSet) Contains(owner common.Hash) bool {
+	ots.lock.RLock()
+	defer ots.lock.RUnlock()
+	_, exists := ots.data[owner]
+	return exists
+}
+
+// Reset clears all entries in the set with a write lock.
+func (ots *OpenedTreeSet) Reset() {
+	ots.lock.Lock()
+	defer ots.lock.Unlock()
+	ots.data = make(map[common.Hash]struct{})
 }
