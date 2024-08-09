@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	versa_db "versioned-state-database"
+	versaDB "github.com/bnb-chain/versioned-state-database"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -17,12 +17,13 @@ import (
 )
 
 type VersaDBRunner struct {
-	db                *versa_db.VersaDB
-	stateHandler      versa_db.StateHandler
-	rootTree          versa_db.TreeHandler
-	version           int64
-	stateRoot         common.Hash
-	ownerHandlerCache map[common.Hash]versa_db.TreeHandler
+	db           *versaDB.VersaDB
+	stateHandler versaDB.StateHandler
+	rootTree     versaDB.TreeHandler
+	version      int64
+	stateRoot    common.Hash
+
+	ownerHandlerCache map[common.Hash]versaDB.TreeHandler
 	ownerStorageCache map[common.Hash]StorageCache
 	handlerLock       sync.RWMutex
 	lock              sync.RWMutex
@@ -36,14 +37,14 @@ type StorageCache struct {
 }
 
 func OpenVersaDB(path string, version int64) *VersaDBRunner {
-	db, err := versa_db.NewVersaDB(path, &versa_db.VersaDBConfig{
+	db, err := versaDB.NewVersaDB(path, &versaDB.VersaDBConfig{
 		FlushInterval:  200,
 		MaxStatesInMem: 128,
 	})
 	if err != nil {
 		panic(err)
 	}
-	stateHanlder, err := db.OpenState(version, ethTypes.EmptyRootHash, versa_db.S_COMMIT)
+	stateHanlder, err := db.OpenState(version, ethTypes.EmptyRootHash, versaDB.S_COMMIT)
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +60,7 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateRoot:         ethTypes.EmptyRootHash,
 		rootTree:          rootTree,
 		stateHandler:      stateHanlder,
-		ownerHandlerCache: make(map[common.Hash]versa_db.TreeHandler),
+		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
 		treeOpenLocks:     make(map[common.Hash]*sync.Mutex),
 	}
@@ -296,7 +297,7 @@ func (v *VersaDBRunner) Commit() (common.Hash, error) {
 
 	v.version++
 	v.stateRoot = hash
-	v.stateHandler, err = v.db.OpenState(v.version, hash, versa_db.S_COMMIT)
+	v.stateHandler, err = v.db.OpenState(v.version, hash, versaDB.S_COMMIT)
 	if err != nil {
 		log.Info("open state err" + err.Error())
 		return ethTypes.EmptyRootHash, err
