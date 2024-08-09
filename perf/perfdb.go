@@ -215,7 +215,7 @@ func (r *DBRunner) printStat() {
 }
 
 func (r *DBRunner) InitAccount() {
-	addresses, accounts := makeAccounts(int(r.perfConfig.BatchSize) * 10000)
+	addresses, accounts := makeAccounts(int(r.perfConfig.BatchSize) * 1000)
 
 	for i := 0; i < len(addresses); i++ {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
@@ -233,6 +233,7 @@ func (r *DBRunner) InitAccount() {
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
+	fmt.Println("init db account commit suceess")
 }
 
 func (d *DBRunner) UpdateDB(
@@ -389,5 +390,10 @@ func (d *DBRunner) InitStorageTrie(
 			}
 		}
 	}
+
+	if _, err := d.db.Commit(); err != nil {
+		panic("failed to commit: " + err.Error())
+	}
+
 	fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s")
 }
