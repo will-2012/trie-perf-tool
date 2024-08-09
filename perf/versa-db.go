@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	versa_db "versioned-state-database"
+	versa_db "github.com/bnb-chain/versioned-state-database"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"

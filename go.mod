@@ -3,12 +3,12 @@ module mpt-perf
 go 1.22
 
 require (
+	github.com/bnb-chain/versioned-state-database v0.0.0-20240809085816-0338449a56e8
 	github.com/ethereum/go-ethereum v1.14.7
 	github.com/holiman/uint256 v1.3.0
 	github.com/syndtr/goleveldb v1.0.1
 	github.com/urfave/cli/v2 v2.26.0
 	golang.org/x/crypto v0.25.0
-	versioned-state-database v0.0.0-20240725084852-1ac26582ef72
 )
 
 require (
@@ -16,7 +16,6 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.11.0 // indirect
-	github.com/bnb-chain/versioned-state-database v0.0.0-20240809035848-76ffc0e09a92 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.1 // indirect
@@ -81,10 +80,10 @@ require (
 )
 
 replace (
+	#versioned-state-database => github.com/bnb-chain/versioned-state-database v0.0.0-20240809085816-0338449a56e8
 	github.com/cometbft/cometbft => github.com/bnb-chain/greenfield-cometbft v1.3.1
 	github.com/ethereum/go-ethereum v1.14.7 => github.com/bnb-chain/bsc v1.4.12
 	github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
 	github.com/syndtr/goleveldb v1.0.1 => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.16
-	versioned-state-database => github.com/bnb-chain/versioned-state-database v0.0.0-20240809084257-3397e3b9aa16
 )
