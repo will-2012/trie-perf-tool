@@ -91,30 +91,10 @@ func createChainDataBase(datadir string) (ethdb.Database, error) {
 
 // MakePBSSTrieDatabase constructs a trie database based on the configured scheme.
 func MakePBSSTrieDatabase(datadir string) (*triedb.Database, error) {
-
 	diskdb, err := createChainDataBase(datadir)
 	if err != nil {
 		return nil, err
 	}
-	/*
-		data := filepath.Join(datadir, "geth")
-		directory := filepath.Join(data, "chaindata")
-		diskdb, err := rawdb.Open(rawdb.OpenOptions{
-			Type:              "pebble",
-			Directory:         directory,
-			AncientsDirectory: "",
-			Namespace:         "",
-			Cache:             1000,
-			Handles:           20000,
-			ReadOnly:          false,
-			DisableFreeze:     true,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-	
-	*/
 	config := &triedb.Config{
 		PathDB: pathdb.Defaults,
 	}

@@ -20,8 +20,10 @@ type CAKeyValue struct {
 }
 
 const (
-	CAStorageSize = 100
-	CAStorageNum  = 3
+	CAStorageSize      = 100
+	CAStorageUpdateNum = 100
+	CAStorageTrieNum   = 10
+	CAStorageInitSize  = 10000000
 )
 
 type DBTask map[string]CAKeyValue

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -18,15 +19,18 @@ import (
 )
 
 type StateDBRunner struct {
-	diskdb         ethdb.KeyValueStore
-	triedb         *triedb.Database
-	accTrie        *trie.StateTrie
-	nodes          *trienode.MergedNodeSet
-	stateTrie      PbssStateTrie
-	parentRoot     common.Hash
-	height         int64
-	accountsOrigin map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
-	storagesOrigin map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp forma
+	diskdb            ethdb.KeyValueStore
+	triedb            *triedb.Database
+	accTrie           *trie.StateTrie
+	nodes             *trienode.MergedNodeSet
+	stateTrie         PbssStateTrie
+	parentRoot        common.Hash
+	height            int64
+	accountsOrigin    map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
+	storagesOrigin    map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp forma
+	stateRoot         common.Hash
+	ownerStorageCache map[common.Hash]common.Hash
+	lock              sync.RWMutex
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -100,7 +104,6 @@ func (v *StateDBRunner) AddAccount(acckey string, val []byte) error {
 }
 
 func (v *StateDBRunner) GetAccount(acckey string) ([]byte, error) {
-	//	key := hashData([]byte(acckey))
 	return rawdb.ReadAccountSnapshot(v.diskdb, common.BytesToHash([]byte(acckey))), nil
 }
 
@@ -131,7 +134,7 @@ func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 }
 
 func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) (common.Hash, error) {
-	id := trie.StorageTrieID(ethTypes.EmptyRootHash, owner, ethTypes.EmptyRootHash)
+	id := trie.StorageTrieID(v.stateRoot, owner, ethTypes.EmptyRootHash)
 	stTrie, _ := trie.NewStateTrie(id, v.triedb)
 	for i, k := range keys {
 		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
@@ -144,6 +147,10 @@ func (v *StateDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	if nodes != nil {
 		v.nodes.Merge(nodes)
 	}
+	v.lock.Lock()
+	v.ownerStorageCache[owner] = root
+	v.lock.Unlock()
+
 	return root, nil
 }
 
@@ -151,12 +158,43 @@ func (s *StateDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 	return rawdb.ReadStorageSnapshot(s.diskdb, common.BytesToHash(owner), hashData(key)), nil
 }
 
-/*
-func (s *StateDBRunner) UpdateStorage(owner []byte, key []byte, val []byte) ([]byte, error) {
+// UpdateStorage  update batch k,v of storage trie
+func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string) error {
+	var err error
+	ownerHash := common.BytesToHash(owner)
+	// try to get version and root from cache first
+	s.lock.RLock()
+	root, exist := s.ownerStorageCache[ownerHash]
+	s.lock.RUnlock()
+	if !exist {
+		return fmt.Errorf("fail to get storage trie root in cache")
+	}
 
+	id := trie.StorageTrieID(s.stateRoot, ownerHash, root)
+	stTrie, _ := trie.NewStateTrie(id, s.triedb)
+	for i, k := range keys {
+		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
+	}
+
+	// update batch storage trie
+	for i := 0; i < len(keys) && i < len(vals); i++ {
+		stTrie.MustUpdate([]byte(keys[i]), []byte(vals[i]))
+	}
+
+	root, nodes, err := stTrie.Commit(true)
+	if err != nil {
+		return err
+	}
+	if nodes != nil {
+		s.nodes.Merge(nodes)
+	}
+
+	s.lock.Lock()
+	s.ownerStorageCache[ownerHash] = root
+	s.lock.Unlock()
+
+	return err
 }
-
-*/
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {
 	root, nodes, err := s.accTrie.Commit(true)
@@ -177,6 +215,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 
 	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
 	s.parentRoot = root
+	s.stateRoot = root
 	s.height++
 	s.nodes = trienode.NewMergedNodeSet()
 	return root, nil
