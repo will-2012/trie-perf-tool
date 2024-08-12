@@ -31,7 +31,7 @@ type StorageCache struct {
 
 func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	db, err := versa_db.NewVersaDB(path, &versa_db.VersaDBConfig{
-		FlushInterval:  200,
+		FlushInterval:  1000,
 		MaxStatesInMem: 128,
 	})
 	if err != nil {
