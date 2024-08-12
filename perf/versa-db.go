@@ -122,7 +122,7 @@ func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
 func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []string) error {
 	var err error
 	ownerHash := common.BytesToHash(owner)
-	var tHandler versa_db.TreeHandler
+	var tHandler versaDB.TreeHandler
 
 	v.handlerLock.RLock()
 	tHandler, found := v.ownerHandlerCache[ownerHash]
@@ -231,8 +231,8 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 	return val, err
 }
 
-func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum int64) (*versa_db.TreeHandler, error) {
-	var tHandler versa_db.TreeHandler
+func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum int64) (*versaDB.TreeHandler, error) {
+	var tHandler versaDB.TreeHandler
 	var found bool
 	var err error
 
@@ -309,7 +309,7 @@ func (v *VersaDBRunner) Commit() (common.Hash, error) {
 		return ethTypes.EmptyRootHash, err
 	}
 
-	v.ownerHandlerCache = make(map[common.Hash]versa_db.TreeHandler)
+	v.ownerHandlerCache = make(map[common.Hash]versaDB.TreeHandler)
 	return hash, nil
 }
 
