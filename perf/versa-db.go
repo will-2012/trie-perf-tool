@@ -71,6 +71,9 @@ func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
 func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
 	ownerHash := common.BytesToHash(owner)
 	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
+	if stRoot.Cmp(common.Hash{}) == 0 {
+		return fmt.Errorf("failed to make storage trie")
+	}
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
@@ -81,7 +84,8 @@ func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) common.Hash {
 	tHandler, err := v.db.OpenTree(v.stateHandler, v.version, owner, ethTypes.EmptyRootHash)
 	if err != nil {
-		panic(fmt.Sprintf("failed to open tree, version: %d, owner: %d, err: %s", version, owner, err.Error()))
+		fmt.Sprintf("failed to open tree, version: %d, owner: %d, err: %s", v.version, owner, err.Error())
+		return common.Hash{}
 	}
 	for i, k := range keys {
 		v.db.Put(tHandler, []byte(k), []byte(vals[i]))
