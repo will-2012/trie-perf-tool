@@ -27,6 +27,7 @@ type DBRunner struct {
 	ownerCache      *InsertedKeySet
 	//storageCache      *lru.Cache[string, []byte]
 	storageCache      map[string][]string
+	largeStorageCache map[string][]string
 	blockHeight       uint64
 	rwDuration        time.Duration
 	rDuration         time.Duration
@@ -39,6 +40,7 @@ type DBRunner struct {
 	BlockCount        int64 // Number of rwDuration samples
 	totalHashurations time.Duration
 	updateAccount     int64
+	largeStorageTrie  []string
 }
 
 func NewDBRunner(
@@ -56,7 +58,8 @@ func NewDBRunner(
 		keyCache:        NewFixedSizeSet(1000000),
 		ownerCache:      NewFixedSizeSet(CAStorageTrieNum),
 		//	storageCache:    lru.NewCache[string, []byte](100000),
-		storageCache: make(map[string][]string),
+		storageCache:     make(map[string][]string),
+		largeStorageTrie: make([]string, 2),
 	}
 
 	return runner
@@ -105,8 +108,8 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				}
 			}
 
-			// write 1/5 kv of account , 4/5 kv of storage
-			storageUpdateNum := int(batchSize) / 5 * 4 / CAStorageTrieNum
+			// small storage trie write 3/5 kv of storage
+			storageUpdateNum := int(batchSize) / 5 * 3 / (CAStorageTrieNum - 2)
 			//	StorageInitSize := d.perfConfig.StorageTrieSize
 			for k, v := range d.storageCache {
 				keys := make([]string, 0, storageUpdateNum)
@@ -118,8 +121,23 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 					keys = append(keys, v[randomIndex])
 					vals = append(vals, string(value))
 				}
-				taskMap.StorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
+				taskMap.SmallStorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
 			}
+			// large storage trie write 1/5 kv of storage
+			largeStorageUpdateNum := int(batchSize) / 5 / 2
+			for k, v := range d.largeStorageCache {
+				keys := make([]string, 0, storageUpdateNum)
+				vals := make([]string, 0, storageUpdateNum)
+				for j := 0; j < largeStorageUpdateNum; j++ {
+					// only cache 10000 for updating test
+					randomIndex := mathrand.Intn(10000)
+					value := generateValue(7, 16)
+					keys = append(keys, v[randomIndex])
+					vals = append(vals, string(value))
+				}
+				taskMap.LargeStorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
+			}
+
 			d.taskChan <- taskMap
 		}
 	}
@@ -127,6 +145,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 
 func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 	taskMap := make(InitDBTask, CAStorageTrieNum)
+	//taskMap2 := make(InitDBTask, CAStorageTrieNum-2)
 	random := mathrand.New(mathrand.NewSource(0))
 
 	CAAccount := make([][20]byte, CAStorageTrieNum)
@@ -139,7 +158,25 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 	}
 
 	StorageInitSize := d.perfConfig.StorageTrieSize
-	for i := 0; i < len(CAAccount); i++ {
+	// init large tree by the config trie size
+	for i := 0; i < 2; i++ {
+		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
+		keys := make([]string, 0, StorageInitSize)
+		vals := make([]string, 0, StorageInitSize)
+		for j := uint64(0); j < StorageInitSize; j++ {
+			randomStr := generateValue(32, 32)
+			value := generateValue(7, 16)
+			keys = append(keys, string(randomStr))
+			vals = append(vals, string(value))
+		}
+		taskMap[ownerHash] = CAKeyValue{
+			Keys: keys, Vals: vals}
+		d.largeStorageTrie[i] = ownerHash
+	}
+
+	// init small tree by the config trie size
+	StorageInitSize = StorageInitSize / 100
+	for i := 0; i < len(CAAccount)-2; i++ {
 		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 
 		keys := make([]string, 0, StorageInitSize)
@@ -268,17 +305,20 @@ func (d *DBRunner) UpdateDB(
 	threadNum := d.perfConfig.NumJobs
 	var wg sync.WaitGroup
 	start := time.Now()
-	singleTrieReadNum := batchSize / 5 * 3 / CAStorageTrieNum
-	ownerList, err := d.ownerCache.GetNRandomSets(threadNum, CAStorageTrieNum/threadNum)
+	smallTrieReadNum := batchSize / 5 * 3 / (CAStorageTrieNum - 2)
+	largeTrieReadNum := batchSize / 5 / 2
+	ownerList, err := d.ownerCache.GetNRandomSets(threadNum-1, (CAStorageTrieNum-2)/(threadNum-1))
 	if err != nil {
 		panic("error split owner" + err.Error())
 	}
-	for i := 0; i < threadNum; i++ {
+
+	// use threads to read small storage tries
+	for i := 0; i < threadNum-1; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
 			for t := 0; t < len(ownerList[index]); t++ {
-				for j := 0; j < singleTrieReadNum; j++ {
+				for j := 0; j < smallTrieReadNum; j++ {
 					owner := ownerList[index][t]
 					keys := d.storageCache[owner]
 					randomIndex := mathrand.Intn(len(keys))
@@ -300,14 +340,42 @@ func (d *DBRunner) UpdateDB(
 			}
 		}(i)
 	}
+
+	// use one thread to read large storage tries
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		index := mathrand.Intn(1)
+		for j := 0; j < largeTrieReadNum; j++ {
+			owner := d.largeStorageTrie[index]
+			keys := d.largeStorageCache[owner]
+			randomIndex := mathrand.Intn(len(keys))
+			startRead := time.Now()
+			value, err := d.db.GetStorage([]byte(owner), []byte(keys[randomIndex]))
+			if d.db.GetMPTEngine() == VERSADBEngine {
+				versaDBStorageGetLatency.Update(time.Since(startRead))
+			} else {
+				StateDBStorageGetLatency.Update(time.Since(startRead))
+			}
+			d.stat.IncGet(1)
+			if err != nil || value == nil {
+				if err != nil {
+					fmt.Println("fail to get key", err.Error())
+				}
+				d.stat.IncGetNotExist(1)
+			}
+		}
+	}()
+
 	wg.Wait()
 
+	//  read 1/5 kv of account
 	for i := 0; i < threadNum; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// random read 2/5 kv from account
-			for j := 0; j < batchSize/5*2; j++ {
+			for j := 0; j < batchSize/5; j++ {
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
 					var value []byte
@@ -344,8 +412,25 @@ func (d *DBRunner) UpdateDB(
 
 	start = time.Now()
 
-	// simulate insert Account and Storage Trie
-	for key, value := range taskInfo.StorageTask {
+	// simulate upadte small Storage Trie
+	for key, value := range taskInfo.SmallStorageTask {
+		startPut := time.Now()
+		// add new storage
+		err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		if err != nil {
+			fmt.Println("update storage err", err.Error())
+		}
+		microseconds := time.Since(startPut).Microseconds() / int64(len(value.Keys))
+		if d.db.GetMPTEngine() == VERSADBEngine {
+			versaDBStoragePutLatency.Update(time.Duration(microseconds) * time.Microsecond)
+		} else {
+			StateDBStoragePutLatency.Update(time.Duration(microseconds) * time.Microsecond)
+		}
+		d.stat.IncPut(uint64(len(value.Keys)))
+	}
+
+	// simulate update large Storage Trie
+	for key, value := range taskInfo.LargeStorageTask {
 		startPut := time.Now()
 		// add new storage
 		err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
@@ -395,7 +480,13 @@ func (d *DBRunner) UpdateDB(
 			insertKey := common.BytesToHash([]byte(key))
 			rawdb.WriteAccountSnapshot(snapDB, insertKey, value)
 		}
-		for key, value := range taskInfo.StorageTask {
+		for key, value := range taskInfo.SmallStorageTask {
+			accHash := common.BytesToHash([]byte(key))
+			for i, k := range value.Keys {
+				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
+			}
+		}
+		for key, value := range taskInfo.LargeStorageTask {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {
 				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
@@ -412,22 +503,26 @@ func (d *DBRunner) InitStorageTrie(
 	fmt.Println("init storage trie begin")
 	var owners []common.Hash
 	StorageInitSize := d.perfConfig.StorageTrieSize
+	smallStorageSize := d.perfConfig.StorageTrieSize / 100
 	var snapDB ethdb.KeyValueStore
 	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
 		// simulate insert key to snap
 		snapDB = d.db.GetFlattenDB()
 	}
 	initTrieNum := 0
-	// simulate init  Storage Trie
+
 	for key, value := range taskInfo {
 		start := time.Now()
 		// add new storage
 		d.db.AddStorage([]byte(key), value.Keys, value.Vals)
-		d.storageCache[key] = value.Keys
-		d.ownerCache.Add(key)
 
 		// cache the inserted key for updating test
-		d.storageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+10000]
+		if d.isLargeStorageTrie(key) {
+			d.largeStorageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+1000000]
+		} else {
+			d.ownerCache.Add(key)
+			d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+100000]
+		}
 		owners = append(owners, common.BytesToHash([]byte(key)))
 
 		if snapDB != nil {
@@ -457,5 +552,11 @@ func (d *DBRunner) InitStorageTrie(
 
 	// init the lock of each tree
 	d.db.InitStorage(owners)
+}
 
+func (d *DBRunner) isLargeStorageTrie(owner string) bool {
+	if owner == d.largeStorageTrie[0] || owner == d.largeStorageTrie[1] {
+		return true
+	}
+	return false
 }
