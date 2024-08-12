@@ -37,6 +37,7 @@ type DBRunner struct {
 	totalWriteCost    time.Duration
 	BlockCount        int64 // Number of rwDuration samples
 	totalHashurations time.Duration
+	updateAccount     int64
 }
 
 func NewDBRunner(
@@ -51,7 +52,7 @@ func NewDBRunner(
 		perfConfig:      config,
 		taskChan:        make(chan DBTask, taskBufferSize),
 		initTaskChan:    make(chan DBTask, taskBufferSize),
-		keyCache:        NewFixedSizeSet(100000),
+		keyCache:        NewFixedSizeSet(1000000),
 		ownerCache:      NewFixedSizeSet(CAStorageTrieNum),
 		//	storageCache:    lru.NewCache[string, []byte](100000),
 		storageCache: make(map[string][]string),
@@ -80,24 +81,26 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 			taskMap := NewDBTask()
 			random := mathrand.New(mathrand.NewSource(0))
 			updateAccounts := int(batchSize) / 5
-			num := 0
+			accounts := make([][]byte, updateAccounts)
+			for i := 0; i < updateAccounts; i++ {
+				var (
+					nonce = uint64(random.Int63())
+					root  = types.EmptyRootHash
+					code  = crypto.Keccak256(generateRandomBytes(20))
+				)
+				numBytes := random.Uint32() % 33 // [0, 32] bytes
+				balanceBytes := make([]byte, numBytes)
+				random.Read(balanceBytes)
+				balance := new(uint256.Int).SetBytes(balanceBytes)
+				data, _ := rlp.EncodeToBytes(&types.StateAccount{Nonce: nonce, Balance: balance, Root: root, CodeHash: code})
+				accounts[i] = data
+			}
+
 			for i := 0; i < updateAccounts; i++ {
 				randomKey, found := d.keyCache.RandomItem()
 				if found {
-					res, err := d.db.GetAccount(randomKey)
-					// update the balance to a random value
-					if err == nil {
-						num++
-						ret := new(types.StateAccount)
-						err = rlp.DecodeBytes(res, ret)
-						numBytes := random.Uint32() % 33 // [0, 32] bytes
-						balanceBytes := make([]byte, numBytes)
-						random.Read(balanceBytes)
-						balance := new(uint256.Int).SetBytes(balanceBytes)
-						newNonce := uint64(random.Int63())
-						data, _ := rlp.EncodeToBytes(&types.StateAccount{Nonce: newNonce, Balance: balance, Root: ret.Root, CodeHash: ret.CodeHash})
-						taskMap.AccountTask[randomKey] = data
-					}
+					// update the account
+					taskMap.AccountTask[randomKey] = accounts[i]
 				}
 			}
 
@@ -192,6 +195,7 @@ func (r *DBRunner) runInternal(ctx context.Context) {
 			}
 
 			r.blockHeight++
+			r.updateAccount = 0
 			BlockHeight.Update(int64(r.blockHeight))
 		case <-ticker.C:
 			r.printStat()
@@ -362,6 +366,8 @@ func (d *DBRunner) UpdateDB(
 		err = d.db.UpdateAccount([]byte(key), value)
 		if err != nil {
 			fmt.Println("update account err", err.Error())
+		} else {
+			d.updateAccount++
 		}
 		if d.db.GetMPTEngine() == VERSADBEngine {
 			VersaDBAccPutLatency.Update(time.Since(startPut))

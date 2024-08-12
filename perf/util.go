@@ -23,7 +23,7 @@ const (
 	CAStorageUpdateNum = 100
 	CAStorageTrieNum   = 10
 	CAStorageInitSize  = 10000000
-	InitAccounts       = 2000000
+	InitAccounts       = 20000000
 )
 
 type InitDBTask map[string]CAKeyValue
@@ -177,7 +177,7 @@ func makeStorage(size int) (addresses [][20]byte, accounts [][]byte) {
 		var (
 			nonce = uint64(random.Int63())
 			root  = types.EmptyRootHash
-			code  = crypto.Keccak256(nil)
+			code  = crypto.Keccak256(generateRandomBytes(20))
 		)
 		numBytes := random.Uint32() % 33 // [0, 32] bytes
 		balanceBytes := make([]byte, numBytes)
@@ -261,4 +261,13 @@ func (s *InsertedKeySet) GetNRandomSets(n int, m int) ([][]string, error) {
 	}
 
 	return result, nil
+}
+
+func generateRandomBytes(length int) []byte {
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return nil
+	}
+	return bytes
 }

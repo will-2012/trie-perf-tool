@@ -281,12 +281,12 @@ func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum
 func (v *VersaDBRunner) Commit() (common.Hash, error) {
 	hash, err := v.db.Commit(v.rootTree)
 	if err != nil {
-		fmt.Println("commit root tree err" + err.Error())
+		fmt.Printf("commit root tree err:%v, version %d \n", err, v.version)
 		return ethTypes.EmptyRootHash, err
 	}
 	err = v.db.Flush(v.stateHandler)
 	if err != nil {
-		fmt.Println("versa db flush err" + err.Error())
+		fmt.Printf("versa db flush err:%v, version %d \n", err, v.version)
 		return ethTypes.EmptyRootHash, err
 	}
 	err = v.db.CloseState(v.stateHandler)

@@ -216,7 +216,7 @@ func (s *StateDBRunner) InitStorage(owners []common.Hash) {
 }
 
 func (s *StateDBRunner) Commit() (common.Hash, error) {
-	root, nodes, err := s.accTrie.Commit(true)
+	root, nodes, err := s.accTrie.Commit(false)
 	if err != nil {
 		return ethTypes.EmptyRootHash, err
 	}
