@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
 )
@@ -253,7 +254,6 @@ func (r *DBRunner) InitAccount() {
 		// double write to leveldb
 	}
 
-	fmt.Println("init db account suceess")
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
@@ -408,12 +408,19 @@ func (d *DBRunner) UpdateDB(
 func (d *DBRunner) InitStorageTrie(
 	taskInfo InitDBTask,
 ) {
-	start := time.Now()
+
 	fmt.Println("init storage trie begin")
 	var owners []common.Hash
 	StorageInitSize := d.perfConfig.StorageTrieSize
+	var snapDB ethdb.KeyValueStore
+	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+		// simulate insert key to snap
+		snapDB = d.db.GetFlattenDB()
+	}
+	initTrieNum := 0
 	// simulate init  Storage Trie
 	for key, value := range taskInfo {
+		start := time.Now()
 		// add new storage
 		d.db.AddStorage([]byte(key), value.Keys, value.Vals)
 		d.storageCache[key] = value.Keys
@@ -422,25 +429,33 @@ func (d *DBRunner) InitStorageTrie(
 		// cache the inserted key for updating test
 		d.storageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+10000]
 		owners = append(owners, common.BytesToHash([]byte(key)))
-	}
 
-	// init the lock of each tree
-	d.db.InitStorage(owners)
-	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
-		// simulate insert key to snap
-		snapDB := d.db.GetFlattenDB()
-		for key, value := range taskInfo {
-			// add new storage
+		if snapDB != nil {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {
 				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
 			}
 		}
+		// init 3 accounts to commit a block
+		addresses, accounts := makeAccounts(3)
+		for i := 0; i < len(addresses); i++ {
+			initKey := string(crypto.Keccak256(addresses[i][:]))
+			d.db.AddAccount(initKey, accounts[i])
+			d.keyCache.Add(initKey)
+			if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+				rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+			}
+		}
+
+		if _, err := d.db.Commit(); err != nil {
+			panic("failed to commit: " + err.Error())
+		}
+		initTrieNum++
+		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
+			"finish trie init num", initTrieNum)
 	}
 
-	if _, err := d.db.Commit(); err != nil {
-		panic("failed to commit: " + err.Error())
-	}
+	// init the lock of each tree
+	d.db.InitStorage(owners)
 
-	fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s")
 }

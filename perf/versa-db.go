@@ -44,11 +44,19 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	if err != nil {
 		panic(err)
 	}
-	stateHanlder, err := db.OpenState(version, ethTypes.EmptyRootHash, versaDB.S_COMMIT)
+	initHash := ethTypes.EmptyRootHash
+
+	version, initHash = db.LatestStoreDiskVersionInfo()
+	if version >= 0 {
+		fmt.Printf("init from existed db, version %d, root hash %v \n", version, initHash)
+	}
+
+	stateHanlder, err := db.OpenState(version, initHash, versaDB.S_COMMIT)
 	if err != nil {
 		panic(err)
 	}
-	rootTree, err := db.OpenTree(stateHanlder, version, common.Hash{}, ethTypes.EmptyRootHash)
+
+	rootTree, err := db.OpenTree(stateHanlder, version, common.Hash{}, initHash)
 	if err != nil {
 		panic(err)
 	}
