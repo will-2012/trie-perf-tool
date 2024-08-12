@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -196,6 +197,18 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	s.lock.Unlock()
 
 	return err
+}
+
+func (s *StateDBRunner) UpdateAccount(key, value []byte) error {
+	originValue, err := s.GetAccount(string(key))
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(originValue, value) {
+		return nil
+	}
+	s.accTrie.MustUpdate(key, value)
+	return nil
 }
 
 func (s *StateDBRunner) InitStorage(owners []common.Hash) {

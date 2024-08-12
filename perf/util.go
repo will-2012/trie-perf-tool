@@ -14,9 +14,8 @@ import (
 )
 
 type CAKeyValue struct {
-	Keys    []string
-	Vals    []string
-	Account []byte
+	Keys []string
+	Vals []string
 }
 
 const (
@@ -24,9 +23,22 @@ const (
 	CAStorageUpdateNum = 100
 	CAStorageTrieNum   = 10
 	CAStorageInitSize  = 10000000
+	InitAccounts       = 2000000
 )
 
-type DBTask map[string]CAKeyValue
+type InitDBTask map[string]CAKeyValue
+
+type DBTask struct {
+	AccountTask map[string][]byte
+	StorageTask map[string]CAKeyValue
+}
+
+func NewDBTask() DBTask {
+	return DBTask{
+		AccountTask: make(map[string][]byte),
+		StorageTask: make(map[string]CAKeyValue),
+	}
+}
 
 type Stat struct {
 	ioStat      IOStat

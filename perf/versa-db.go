@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
@@ -171,6 +172,18 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	return nil
 }
 
+func (v *VersaDBRunner) UpdateAccount(key, value []byte) error {
+	_, originValue, err := v.db.Get(v.rootTree, key)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(originValue, value) {
+		fmt.Println("update account no value update")
+		return nil
+	}
+	return v.db.Put(v.rootTree, key, value)
+}
+
 func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 	ownerHash := common.BytesToHash(owner)
 	v.handlerLock.RLock()
@@ -263,6 +276,7 @@ func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum
 	}
 	return &tHandler, nil
 }
+
 func (v *VersaDBRunner) Commit() (common.Hash, error) {
 	hash, err := v.db.Commit(v.rootTree)
 	if err != nil {

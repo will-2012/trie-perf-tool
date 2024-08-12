@@ -30,6 +30,8 @@ type StateDatabase interface {
 
 	AddAccount(key string, value []byte) error
 
+	UpdateAccount(key []byte, value []byte) error
+
 	AddStorage(owner []byte, keys []string, vals []string) error
 
 	GetStorage(owner []byte, key []byte) ([]byte, error)
