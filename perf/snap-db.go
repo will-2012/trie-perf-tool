@@ -38,6 +38,16 @@ type StateDBRunner struct {
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	triedb, _ := MakePBSSTrieDatabase(datadir)
 
+	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "", false)
+	if err != nil {
+		panic("create leveldb err")
+	}
+
+	rootBytes, err := leveldb.Get(InitFinishRoot)
+	if err == nil && rootBytes != nil {
+		root = common.BytesToHash(rootBytes)
+	}
+
 	accTrie, err := trie.NewStateTrie(trie.StateTrieID(root), triedb)
 	if err != nil {
 		panic("create state trie err")
@@ -46,11 +56,6 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	nodeSet := trienode.NewMergedNodeSet()
 	if nodeSet == nil {
 		panic("node set empty")
-	}
-
-	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "", false)
-	if err != nil {
-		panic("create leveldb err")
 	}
 
 	s := &StateDBRunner{
@@ -237,6 +242,7 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	s.stateRoot = root
 	s.height++
 	s.nodes = trienode.NewMergedNodeSet()
+	s.MarkInitRoot(root)
 	return root, nil
 }
 
@@ -250,4 +256,8 @@ func (s *StateDBRunner) GetMPTEngine() string {
 
 func (p *StateDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return p.diskdb
+}
+
+func (s *StateDBRunner) MarkInitRoot(hash common.Hash) {
+	s.diskdb.Put(InitFinishRoot, hash.Bytes())
 }

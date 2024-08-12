@@ -37,6 +37,8 @@ type PerfConfig struct {
 	MetricsPort      int
 	StorageTrieSize  uint64
 	AccountsInitSize uint64
+	AccountsBlocks   uint64
+	TrieBlocks       uint64
 }
 
 const version = "1.0.0"
@@ -128,15 +130,30 @@ func main() {
 				Aliases:     []string{"ts"},
 				Usage:       "storage trie size",
 				Value:       1000000,
-				Destination: &config.KeyRange,
+				Destination: &config.StorageTrieSize,
 			},
 			&cli.Uint64Flag{
 				Name:        "accounts",
 				Aliases:     []string{"a"},
 				Usage:       "account size",
 				Value:       1000000,
-				Destination: &config.KeyRange,
+				Destination: &config.AccountsInitSize,
 			},
+			&cli.Uint64Flag{
+				Name:        "account_block",
+				Aliases:     []string{"ab"},
+				Usage:       "blocks number to init the account",
+				Value:       1000,
+				Destination: &config.AccountsBlocks,
+			},
+			&cli.Uint64Flag{
+				Name:        "trie_block",
+				Aliases:     []string{"tb"},
+				Usage:       "blocks to init the large tree",
+				Value:       1000,
+				Destination: &config.TrieBlocks,
+			},
+
 			&cli.Uint64Flag{
 				Name:        "key_range",
 				Aliases:     []string{"r"},
@@ -292,6 +309,8 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 	deleteRatio := c.Float64("delete_ratio")
 	trieSize := c.Uint64("triesize")
 	accounts := c.Uint64("accounts")
+	accountBlock := c.Uint64("account_block")
+	trieBlock := c.Uint64("trie_block")
 	return PerfConfig{
 		BatchSize:        batchSize,
 		NumJobs:          threadNum,
@@ -301,5 +320,7 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 		DeleteRatio:      deleteRatio,
 		StorageTrieSize:  trieSize,
 		AccountsInitSize: accounts,
+		AccountsBlocks:   accountBlock,
+		TrieBlocks:       trieBlock,
 	}
 }

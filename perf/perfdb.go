@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	mathrand "math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type DBRunner struct {
@@ -41,6 +43,7 @@ type DBRunner struct {
 	totalHashurations time.Duration
 	updateAccount     int64
 	largeStorageTrie  []string
+	owners            []common.Hash
 }
 
 func NewDBRunner(
@@ -58,8 +61,9 @@ func NewDBRunner(
 		keyCache:        NewFixedSizeSet(1000000),
 		ownerCache:      NewFixedSizeSet(CAStorageTrieNum),
 		//	storageCache:    lru.NewCache[string, []byte](100000),
-		storageCache:     make(map[string][]string),
-		largeStorageTrie: make([]string, 2),
+		storageCache:      make(map[string][]string),
+		largeStorageCache: make(map[string][]string),
+		largeStorageTrie:  make([]string, 2),
 	}
 
 	return runner
@@ -68,11 +72,44 @@ func NewDBRunner(
 func (d *DBRunner) Run(ctx context.Context) {
 	defer close(d.taskChan)
 	// init the state db
-	d.InitAccount()
-	d.InitStorageTrie(d.generateInitStorageTasks())
+	blocks := d.perfConfig.AccountsBlocks
+	fmt.Printf("init account in %d blocks , account num %d \n", blocks, d.perfConfig.AccountsInitSize)
+	for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
+		d.InitAccount(i)
+	}
+	//	d.InitStorageTrie(d.generateInitStorageTasks())
+	_, err := d.ReadConfig("config.toml")
+	if err != nil {
+		fmt.Println("fail to load config")
+		d.InitLargeStorageTasks(0)
+
+		fmt.Println("init one large trie finish")
+		d.InitLargeStorageTasks(1)
+
+		fmt.Println("init two large trie finish")
+		smallTrees := d.InitSmallStorageTasks()
+		fmt.Println("init small trie finish")
+
+		for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
+			d.RunEmptyBlock(i)
+		}
+		// init the lock of each tree
+		d.db.InitStorage(d.owners)
+		largeTrees := make([]common.Hash, 2)
+		largeTrees = append(largeTrees, common.BytesToHash([]byte(d.largeStorageTrie[0])))
+		largeTrees = append(largeTrees, common.BytesToHash([]byte(d.largeStorageTrie[1])))
+
+		config := &TreeConfig{largeTrees, smallTrees}
+		if err = d.WriteConfig(config); err != nil {
+			fmt.Println("persist config error")
+		}
+
+	}
+
 	fmt.Println("init db finish, begin to press kv")
 	// Start task generation thread
 	go d.generateRunTasks(ctx, d.perfConfig.BatchSize)
+
 	d.runInternal(ctx)
 }
 
@@ -158,8 +195,11 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 	}
 
 	StorageInitSize := d.perfConfig.StorageTrieSize
+	initTrieNum := 0
+	var owners []common.Hash
 	// init large tree by the config trie size
 	for i := 0; i < 2; i++ {
+		start := time.Now()
 		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		keys := make([]string, 0, StorageInitSize)
 		vals := make([]string, 0, StorageInitSize)
@@ -169,14 +209,21 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 			keys = append(keys, string(randomStr))
 			vals = append(vals, string(value))
 		}
-		taskMap[ownerHash] = CAKeyValue{
-			Keys: keys, Vals: vals}
+		//	taskMap[ownerHash] = CAKeyValue{
+		//		Keys: keys, Vals: vals}
 		d.largeStorageTrie[i] = ownerHash
+		d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+			Keys: keys, Vals: vals}, true)
+		d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
+		initTrieNum++
+		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
+			"finish trie init num", initTrieNum)
 	}
 
 	// init small tree by the config trie size
 	StorageInitSize = StorageInitSize / 100
 	for i := 0; i < len(CAAccount)-2; i++ {
+		start := time.Now()
 		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 
 		keys := make([]string, 0, StorageInitSize)
@@ -187,11 +234,116 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 			keys = append(keys, string(randomStr))
 			vals = append(vals, string(value))
 		}
-		taskMap[ownerHash] = CAKeyValue{
-			Keys: keys, Vals: vals}
+		d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+			Keys: keys, Vals: vals}, true)
+
+		owners = append(owners, common.BytesToHash([]byte(ownerHash)))
+		//taskMap[ownerHash] = CAKeyValue{
+		//	Keys: keys, Vals: vals}
+		initTrieNum++
+		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
+			"finish trie init num", initTrieNum)
 	}
 
+	// init the lock of each tree
+	d.db.InitStorage(owners)
+
 	return taskMap
+}
+
+func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
+	random := mathrand.New(mathrand.NewSource(0))
+
+	CAAccount := make([][20]byte, 1)
+	for i := 0; i < 1; i++ {
+		data := make([]byte, 20)
+		random.Read(data)
+		mathrand.Seed(time.Now().UnixNano())
+		mathrand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
+		copy(CAAccount[i][:], data)
+	}
+
+	StorageInitSize := d.perfConfig.StorageTrieSize
+	start := time.Now()
+	ownerHash := string(crypto.Keccak256(CAAccount[0][:]))
+	d.largeStorageTrie[largeTrieIndex] = ownerHash
+	fmt.Println("large trie owner hash", common.BytesToHash([]byte(ownerHash)))
+	blocks := d.perfConfig.TrieBlocks
+
+	fmt.Printf("init large tree in %d blocks , trie size %d \n", blocks, StorageInitSize)
+	for i := uint64(0); i < d.perfConfig.TrieBlocks; i++ {
+		keys := make([]string, 0, StorageInitSize/blocks)
+		vals := make([]string, 0, StorageInitSize/blocks)
+		for j := uint64(0); j < StorageInitSize/blocks; j++ {
+			randomStr := generateValue(32, 32)
+			value := generateValue(7, 16)
+			keys = append(keys, string(randomStr))
+			vals = append(vals, string(value))
+		}
+		if i == 0 {
+			d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+				Keys: keys, Vals: vals}, true)
+		} else {
+			d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+				Keys: keys, Vals: vals}, false)
+		}
+	}
+
+	d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
+	fmt.Println("init large storage trie success", "cost time", time.Since(start).Seconds(), "s")
+	return
+}
+
+func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
+	random := mathrand.New(mathrand.NewSource(0))
+
+	smallTrees := make([]common.Hash, CAStorageTrieNum-2)
+	CAAccount := make([][20]byte, CAStorageTrieNum-2)
+	for i := 0; i < len(CAAccount); i++ {
+		data := make([]byte, 20)
+		random.Read(data)
+		mathrand.Seed(time.Now().UnixNano())
+		mathrand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
+		copy(CAAccount[i][:], data)
+	}
+
+	initTrieNum := 0
+	// init small tree by the config trie size
+	StorageInitSize := d.perfConfig.StorageTrieSize / 100
+
+	for i := 0; i < len(CAAccount); i++ {
+		start := time.Now()
+		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
+		smallTrees = append(smallTrees, common.BytesToHash([]byte(ownerHash)))
+		blocks := d.perfConfig.TrieBlocks / 10
+		fmt.Printf("init small tree in %d blocks ,  trie szie %d \n", blocks, StorageInitSize)
+		for t := uint64(0); t < blocks; t++ {
+			keys := make([]string, 0, StorageInitSize/blocks)
+			vals := make([]string, 0, StorageInitSize/blocks)
+			for j := uint64(0); j < StorageInitSize; j++ {
+				randomStr := generateValue(32, 32)
+				value := generateValue(7, 16)
+				keys = append(keys, string(randomStr))
+				vals = append(vals, string(value))
+			}
+			if t == 0 {
+				d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+					Keys: keys, Vals: vals}, true)
+			} else {
+				d.InitSingleStorageTrie(ownerHash, CAKeyValue{
+					Keys: keys, Vals: vals}, false)
+			}
+		}
+
+		d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
+		//taskMap[ownerHash] = CAKeyValue{
+		//	Keys: keys, Vals: vals}
+		initTrieNum++
+		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
+			"finish trie init num", initTrieNum)
+
+	}
+	return smallTrees
 }
 
 func (r *DBRunner) runInternal(ctx context.Context) {
@@ -276,8 +428,30 @@ func (r *DBRunner) printStat() {
 	r.lastStatInstant = time.Now()
 }
 
-func (r *DBRunner) InitAccount() {
-	addresses, accounts := makeAccounts(InitAccounts)
+func (r *DBRunner) InitAccount(index uint64) {
+	addresses, accounts := makeAccounts(int(r.perfConfig.AccountsInitSize / r.perfConfig.AccountsBlocks))
+
+	for i := 0; i < len(addresses); i++ {
+		initKey := string(crypto.Keccak256(addresses[i][:]))
+		r.db.AddAccount(initKey, accounts[i])
+		r.keyCache.Add(initKey)
+		if r.db.GetMPTEngine() == StateTrieEngine && r.db.GetFlattenDB() != nil {
+			// simulate insert key to snap
+			snapDB := r.db.GetFlattenDB()
+			rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+		}
+		// double write to leveldb
+	}
+	if _, err := r.db.Commit(); err != nil {
+		panic("failed to commit: " + err.Error())
+	}
+
+	r.trySleep()
+	fmt.Println("init db account commit success, block number", index)
+}
+
+func (r *DBRunner) RunEmptyBlock(index uint64) {
+	addresses, accounts := makeAccounts(1)
 
 	for i := 0; i < len(addresses); i++ {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
@@ -294,7 +468,12 @@ func (r *DBRunner) InitAccount() {
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
-	fmt.Println("init db account commit suceess")
+	if r.db.GetMPTEngine() == VERSADBEngine {
+		time.Sleep(200 * time.Millisecond)
+	} else {
+		time.Sleep(10 * time.Millisecond)
+	}
+	fmt.Println("run empty block, number", index)
 }
 
 func (d *DBRunner) UpdateDB(
@@ -389,7 +568,7 @@ func (d *DBRunner) UpdateDB(
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
 						if err != nil {
-							fmt.Println("fail to get key", err.Error())
+							fmt.Println("fail to get kwey", err.Error())
 						}
 						d.stat.IncGetNotExist(1)
 					}
@@ -496,12 +675,72 @@ func (d *DBRunner) UpdateDB(
 
 }
 
+/*
 func (d *DBRunner) InitStorageTrie(
+
 	taskInfo InitDBTask,
+
 ) {
 
-	fmt.Println("init storage trie begin")
-	var owners []common.Hash
+		fmt.Println("init storage trie begin")
+		var owners []common.Hash
+		StorageInitSize := d.perfConfig.StorageTrieSize
+		smallStorageSize := d.perfConfig.StorageTrieSize / 100
+		var snapDB ethdb.KeyValueStore
+		if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+			// simulate insert key to snap
+			snapDB = d.db.GetFlattenDB()
+		}
+		initTrieNum := 0
+
+		for key, value := range taskInfo {
+			start := time.Now()
+			// add new storage
+			d.db.AddStorage([]byte(key), value.Keys, value.Vals)
+
+			// cache the inserted key for updating test
+			if d.isLargeStorageTrie(key) {
+				d.largeStorageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+1000000]
+			} else {
+				d.ownerCache.Add(key)
+				d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+100000]
+			}
+			owners = append(owners, common.BytesToHash([]byte(key)))
+
+			if snapDB != nil {
+				accHash := common.BytesToHash([]byte(key))
+				for i, k := range value.Keys {
+					rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
+				}
+			}
+			// init 3 accounts to commit a block
+			addresses, accounts := makeAccounts(3)
+			for i := 0; i < len(addresses); i++ {
+				initKey := string(crypto.Keccak256(addresses[i][:]))
+				d.db.AddAccount(initKey, accounts[i])
+				d.keyCache.Add(initKey)
+				if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+					rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+				}
+			}
+
+			if _, err := d.db.Commit(); err != nil {
+				panic("failed to commit: " + err.Error())
+			}
+			initTrieNum++
+			fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
+				"finish trie init num", initTrieNum)
+		}
+
+		// init the lock of each tree
+		d.db.InitStorage(owners)
+	}
+*/
+func (d *DBRunner) InitSingleStorageTrie(
+	key string,
+	value CAKeyValue,
+	firstInsert bool,
+) {
 	StorageInitSize := d.perfConfig.StorageTrieSize
 	smallStorageSize := d.perfConfig.StorageTrieSize / 100
 	var snapDB ethdb.KeyValueStore
@@ -509,49 +748,67 @@ func (d *DBRunner) InitStorageTrie(
 		// simulate insert key to snap
 		snapDB = d.db.GetFlattenDB()
 	}
-	initTrieNum := 0
 
-	for key, value := range taskInfo {
-		start := time.Now()
+	var err error
+	if firstInsert {
 		// add new storage
-		d.db.AddStorage([]byte(key), value.Keys, value.Vals)
-
-		// cache the inserted key for updating test
-		if d.isLargeStorageTrie(key) {
-			d.largeStorageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+1000000]
-		} else {
-			d.ownerCache.Add(key)
-			d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+100000]
+		err = d.db.AddStorage([]byte(key), value.Keys, value.Vals)
+		if err != nil {
+			fmt.Println("init storage err:", err.Error())
 		}
-		owners = append(owners, common.BytesToHash([]byte(key)))
-
-		if snapDB != nil {
-			accHash := common.BytesToHash([]byte(key))
-			for i, k := range value.Keys {
-				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
-			}
+	} else {
+		err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		if err != nil {
+			fmt.Println("init storage err:", err.Error())
 		}
-		// init 3 accounts to commit a block
-		addresses, accounts := makeAccounts(3)
-		for i := 0; i < len(addresses); i++ {
-			initKey := string(crypto.Keccak256(addresses[i][:]))
-			d.db.AddAccount(initKey, accounts[i])
-			d.keyCache.Add(initKey)
-			if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
-				rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
-			}
-		}
-
-		if _, err := d.db.Commit(); err != nil {
-			panic("failed to commit: " + err.Error())
-		}
-		initTrieNum++
-		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
-			"finish trie init num", initTrieNum)
 	}
 
-	// init the lock of each tree
-	d.db.InitStorage(owners)
+	// cache the inserted key for updating test
+	if d.isLargeStorageTrie(key) {
+		if len(d.largeStorageCache[key]) < 1500000 {
+			if StorageInitSize > 50000000 {
+
+			}
+			for i := 0; i < len(value.Keys)/50; i++ {
+				d.largeStorageCache[key] = append(d.largeStorageCache[key], value.Keys[i])
+			}
+		}
+		//	d.largeStorageCache[key] = value.Keys[StorageInitSize/100 : StorageInitSize/100+StorageInitSize/100]
+	} else {
+		d.ownerCache.Add(key)
+		d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+smallStorageSize/5]
+	}
+
+	if snapDB != nil {
+		accHash := common.BytesToHash([]byte(key))
+		for i, k := range value.Keys {
+			rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
+		}
+	}
+	// init 3 accounts to commit a block
+	addresses, accounts := makeAccounts(2)
+	for i := 0; i < len(addresses); i++ {
+		initKey := string(crypto.Keccak256(addresses[i][:]))
+		d.db.AddAccount(initKey, accounts[i])
+		d.keyCache.Add(initKey)
+		if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
+			rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+		}
+	}
+
+	if _, err = d.db.Commit(); err != nil {
+		panic("failed to commit: " + err.Error())
+	}
+
+	d.trySleep()
+}
+
+func (d *DBRunner) trySleep() {
+	if d.db.GetMPTEngine() == VERSADBEngine {
+		time.Sleep(200 * time.Millisecond)
+	} else {
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func (d *DBRunner) isLargeStorageTrie(owner string) bool {
@@ -559,4 +816,44 @@ func (d *DBRunner) isLargeStorageTrie(owner string) bool {
 		return true
 	}
 	return false
+}
+
+func (d *DBRunner) ReadConfig(filename string) (*TreeConfig, error) {
+	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
+		return nil, fmt.Errorf("config file %s does not exist", filename)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	config := &TreeConfig{}
+	err = toml.NewDecoder(file).Decode(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(config.LargeTrees) != 2 || len(config.SmallTrees) != 8 {
+		return nil, fmt.Errorf("config file must contain 2 large trees and 8 small trees, but found %d large trees and %d small trees",
+			len(config.LargeTrees), len(config.SmallTrees))
+	}
+
+	return config, nil
+}
+
+func (d *DBRunner) WriteConfig(config *TreeConfig) error {
+	file, err := os.Create("config.toml")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	err = toml.NewEncoder(file).Encode(config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

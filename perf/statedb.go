@@ -47,6 +47,8 @@ type StateDatabase interface {
 	GetFlattenDB() ethdb.KeyValueStore
 
 	InitStorage(owners []common.Hash)
+
+	MarkInitRoot(hash common.Hash)
 }
 
 type TrieBatch interface {

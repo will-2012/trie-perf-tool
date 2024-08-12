@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -23,8 +24,22 @@ const (
 	CAStorageUpdateNum = 100
 	CAStorageTrieNum   = 10
 	CAStorageInitSize  = 10000000
-	InitAccounts       = 20000000
+	InitAccounts       = 10000000
 )
+
+type TreeConfig struct {
+	LargeTrees []common.Hash `toml:"large_trees"`
+	SmallTrees []common.Hash `toml:"small_trees"`
+}
+
+func NewConfig(largeTrees []common.Hash, smallTrees []common.Hash) *TreeConfig {
+	return &TreeConfig{
+		LargeTrees: largeTrees,
+		SmallTrees: smallTrees,
+	}
+}
+
+var InitFinishRoot = []byte("perf-init-root")
 
 type InitDBTask map[string]CAKeyValue
 

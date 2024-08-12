@@ -60,12 +60,12 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("init version db sucess")
+	fmt.Println("init version db success")
 
 	return &VersaDBRunner{
 		db:                db,
 		version:           version,
-		stateRoot:         ethTypes.EmptyRootHash,
+		stateRoot:         initHash,
 		rootTree:          rootTree,
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
@@ -335,4 +335,8 @@ func (v *VersaDBRunner) GetMPTEngine() string {
 
 func (p *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return nil
+}
+
+func (p *VersaDBRunner) MarkInitRoot(hash common.Hash) {
+	return
 }
