@@ -208,7 +208,7 @@ func runPerfDB(c *cli.Context) error {
 	engine := c.String("engine")
 	if engine == VERSADBEngine {
 		fmt.Println("start to test trie:", VERSADBEngine)
-		stateDB = OpenVersaDB("versa-db", 0)
+		stateDB = OpenVersaDB("versa-db", -1)
 	} else if engine == StateTrieEngine {
 		dir, _ := os.Getwd()
 		stateDB = NewStateRunner(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
