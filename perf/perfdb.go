@@ -59,11 +59,12 @@ func NewDBRunner(
 		taskChan:        make(chan DBTask, taskBufferSize),
 		initTaskChan:    make(chan DBTask, taskBufferSize),
 		keyCache:        NewFixedSizeSet(1000000),
-		ownerCache:      NewFixedSizeSet(CAStorageTrieNum),
+		ownerCache:      NewFixedSizeSet(CAStorageTrieNum - 2),
 		//	storageCache:    lru.NewCache[string, []byte](100000),
 		storageCache:      make(map[string][]string),
 		largeStorageCache: make(map[string][]string),
 		largeStorageTrie:  make([]string, 2),
+		owners:            make([]common.Hash, 10),
 	}
 
 	return runner
@@ -215,7 +216,7 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 		d.largeStorageTrie[i] = ownerHash
 		d.InitSingleStorageTrie(ownerHash, CAKeyValue{
 			Keys: keys, Vals: vals}, true)
-		d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
+		d.owners[i] = common.BytesToHash([]byte(ownerHash)
 		initTrieNum++
 		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
 			"finish trie init num", initTrieNum)
@@ -238,7 +239,7 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 		d.InitSingleStorageTrie(ownerHash, CAKeyValue{
 			Keys: keys, Vals: vals}, true)
 
-		owners = append(owners, common.BytesToHash([]byte(ownerHash)))
+		d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
 		//taskMap[ownerHash] = CAKeyValue{
 		//	Keys: keys, Vals: vals}
 		initTrieNum++
@@ -335,7 +336,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 					Keys: keys, Vals: vals}, false)
 			}
 		}
-
+		d.ownerCache.Add(ownerHash)
 		d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
 		//taskMap[ownerHash] = CAKeyValue{
 		//	Keys: keys, Vals: vals}
@@ -742,7 +743,6 @@ func (d *DBRunner) InitSingleStorageTrie(
 	value CAKeyValue,
 	firstInsert bool,
 ) {
-	StorageInitSize := d.perfConfig.StorageTrieSize
 	smallStorageSize := d.perfConfig.StorageTrieSize / 100
 	var snapDB ethdb.KeyValueStore
 	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
@@ -767,16 +767,12 @@ func (d *DBRunner) InitSingleStorageTrie(
 	// cache the inserted key for updating test
 	if d.isLargeStorageTrie(key) {
 		if len(d.largeStorageCache[key]) < 1500000 {
-			if StorageInitSize > 50000000 {
-
-			}
-			for i := 0; i < len(value.Keys)/50; i++ {
+			for i := 0; i < len(value.Keys)/500; i++ {
 				d.largeStorageCache[key] = append(d.largeStorageCache[key], value.Keys[i])
 			}
 		}
 		//	d.largeStorageCache[key] = value.Keys[StorageInitSize/100 : StorageInitSize/100+StorageInitSize/100]
 	} else {
-		d.ownerCache.Add(key)
 		d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+smallStorageSize/5]
 	}
 
