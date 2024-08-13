@@ -246,16 +246,16 @@ func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum
 	v.handlerLock.RLock()
 	tHandler, found = v.ownerHandlerCache[ownerHash]
 	v.handlerLock.RUnlock()
-	getOpenTreeLock := v.treeOpenLocks[ownerHash].TryLock()
 	if found {
 		return &tHandler, nil
 	}
+	getOpenTreeLock := v.treeOpenLocks[ownerHash].TryLock()
 	if !getOpenTreeLock {
 		fmt.Println("storage trie is opening :", ownerHash.String(), "version", versionNum,
 			"try to get the handler for 3 times")
 		start := time.Now()
 		num := 0
-		for i := 0; i < 3; i++ {
+		for i := 0; i < 10; i++ {
 			num++
 			v.handlerLock.RLock()
 			tHandler, found = v.ownerHandlerCache[ownerHash]

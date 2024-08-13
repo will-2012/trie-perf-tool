@@ -512,7 +512,7 @@ func (d *DBRunner) UpdateDB(
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
 						if err != nil {
-							fmt.Println("fail to get key", err.Error())
+							fmt.Println("fail to get small trie key", err.Error())
 						}
 						d.stat.IncGetNotExist(1)
 					}
@@ -540,7 +540,7 @@ func (d *DBRunner) UpdateDB(
 			d.stat.IncGet(1)
 			if err != nil || value == nil {
 				if err != nil {
-					fmt.Println("fail to get key", err.Error())
+					fmt.Println("fail to get large tree key", err.Error())
 				}
 				d.stat.IncGetNotExist(1)
 			}
