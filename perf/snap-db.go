@@ -38,9 +38,10 @@ type StateDBRunner struct {
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	triedb, _ := MakePBSSTrieDatabase(datadir)
 
-	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "", false)
+	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "",
+		false)
 	if err != nil {
-		panic("create leveldb err")
+		panic("create leveldb err" + err.Error())
 	}
 
 	rootBytes, err := leveldb.Get(InitFinishRoot)
@@ -50,7 +51,7 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 
 	accTrie, err := trie.NewStateTrie(trie.StateTrieID(root), triedb)
 	if err != nil {
-		panic("create state trie err")
+		panic("create state trie err" + err.Error())
 	}
 
 	nodeSet := trienode.NewMergedNodeSet()

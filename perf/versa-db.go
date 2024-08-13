@@ -38,7 +38,7 @@ type StorageCache struct {
 
 func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	db, err := versaDB.NewVersaDB(path, &versaDB.VersaDBConfig{
-		FlushInterval:  200,
+		FlushInterval:  2000,
 		MaxStatesInMem: 128,
 	})
 	if err != nil {
@@ -243,7 +243,9 @@ func (v *VersaDBRunner) tryGetTreeLock(ownerHash, stRoot common.Hash, versionNum
 	var tHandler versaDB.TreeHandler
 	var found bool
 	var err error
-
+	v.handlerLock.RLock()
+	tHandler, found = v.ownerHandlerCache[ownerHash]
+	v.handlerLock.RUnlock()
 	getOpenTreeLock := v.treeOpenLocks[ownerHash].TryLock()
 	if found {
 		return &tHandler, nil

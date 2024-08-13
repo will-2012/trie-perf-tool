@@ -96,14 +96,13 @@ func (d *DBRunner) Run(ctx context.Context) {
 		// init the lock of each tree
 		d.db.InitStorage(d.owners)
 		largeTrees := make([]common.Hash, 2)
-		largeTrees = append(largeTrees, common.BytesToHash([]byte(d.largeStorageTrie[0])))
-		largeTrees = append(largeTrees, common.BytesToHash([]byte(d.largeStorageTrie[1])))
+		largeTrees[0] = common.BytesToHash([]byte(d.largeStorageTrie[0]))
+		largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
 
 		config := &TreeConfig{largeTrees, smallTrees}
 		if err = d.WriteConfig(config); err != nil {
 			fmt.Println("persist config error")
 		}
-
 	} else {
 		fmt.Println("load config")
 	}
@@ -155,7 +154,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				vals := make([]string, 0, storageUpdateNum)
 				for j := 0; j < storageUpdateNum; j++ {
 					// only cache 10000 for updating test
-					randomIndex := mathrand.Intn(10000)
+					randomIndex := mathrand.Intn(len(v) - 1)
 					value := generateValue(7, 16)
 					keys = append(keys, v[randomIndex])
 					vals = append(vals, string(value))
@@ -169,7 +168,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				vals := make([]string, 0, storageUpdateNum)
 				for j := 0; j < largeStorageUpdateNum; j++ {
 					// only cache 10000 for updating test
-					randomIndex := mathrand.Intn(10000)
+					randomIndex := mathrand.Intn(len(v) - 1)
 					value := generateValue(7, 16)
 					keys = append(keys, v[randomIndex])
 					vals = append(vals, string(value))
@@ -316,7 +315,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 	for i := 0; i < len(CAAccount); i++ {
 		start := time.Now()
 		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
-		smallTrees = append(smallTrees, common.BytesToHash([]byte(ownerHash)))
+		smallTrees[i] = common.BytesToHash([]byte(ownerHash))
 		blocks := d.perfConfig.TrieBlocks / 10
 		fmt.Printf("init small tree in %d blocks ,  trie szie %d \n", blocks, StorageInitSize)
 		for t := uint64(0); t < blocks; t++ {
