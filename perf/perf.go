@@ -2,15 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -76,14 +73,14 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
 			}
 			/*
-			for i := 0; i < int(batchSize)/2; i++ {
-				randomStr := generateValue(32, 32)
-				randomHash := common.BytesToHash(randomStr)
-				path := generateValue(0, 64)
-				taskMap[string(storageTrieNodeKey(randomHash, path))] = generateValue(7, 16)
-			}
+				for i := 0; i < int(batchSize)/2; i++ {
+					randomStr := generateValue(32, 32)
+					randomHash := common.BytesToHash(randomStr)
+					path := generateValue(0, 64)
+					taskMap[string(storageTrieNodeKey(randomHash, path))] = generateValue(7, 16)
+				}
 
-			 */
+			*/
 			taskChan <- taskMap
 		}
 	}
@@ -102,30 +99,6 @@ func (r *Runner) updateMemoryUsage() {
 // randInt returns a random integer between min and max
 func randInt(min, max int) int {
 	return min + mathrand.Intn(max-min)
-}
-
-func generateRandomHexString() (string, error) {
-	length := randInt(0, 65) // Length between 0 and 64 bytes
-	if length == 0 {
-		return "", nil
-	}
-
-	bytes := make([]byte, length)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(bytes), nil
-}
-
-func storageTrieNodeKey(accountHash common.Hash, path []byte) []byte {
-	trieNodeStoragePrefix := []byte("O")
-	buf := make([]byte, len(trieNodeStoragePrefix)+common.HashLength+len(path))
-	n := copy(buf, trieNodeStoragePrefix)
-	n += copy(buf[n:], accountHash.Bytes())
-	copy(buf[n:], path)
-	return buf
 }
 
 func (r *Runner) runInternal(ctx context.Context) {

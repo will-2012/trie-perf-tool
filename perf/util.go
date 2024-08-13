@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -287,4 +288,60 @@ func generateRandomBytes(length int) []byte {
 		return nil
 	}
 	return bytes
+}
+
+func splitMap(originalMap map[string][]byte, n int) []map[string][]byte {
+	if n <= 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(originalMap))
+	for k := range originalMap {
+		keys = append(keys, k)
+	}
+
+	partitionSize := int(math.Ceil(float64(len(keys)) / float64(n)))
+
+	partitions := make([]map[string][]byte, 0, n)
+	for i := 0; i < n; i++ {
+		partitions = append(partitions, make(map[string][]byte))
+	}
+
+	for i, key := range keys {
+		part := i / partitionSize
+		if part >= n {
+			part = n - 1
+		}
+		partitions[part][key] = originalMap[key]
+	}
+
+	return partitions
+}
+
+func splitMap2(originalMap map[string]CAKeyValue, n int) []map[string]CAKeyValue {
+	if n <= 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(originalMap))
+	for k := range originalMap {
+		keys = append(keys, k)
+	}
+
+	partitionSize := int(math.Ceil(float64(len(keys)) / float64(n)))
+
+	partitions := make([]map[string]CAKeyValue, n)
+	for i := range partitions {
+		partitions[i] = make(map[string]CAKeyValue)
+	}
+
+	for i, key := range keys {
+		part := i / partitionSize
+		if part >= n {
+			part = n - 1
+		}
+		partitions[part][key] = originalMap[key]
+	}
+
+	return partitions
 }
