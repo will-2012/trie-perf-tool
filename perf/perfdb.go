@@ -155,7 +155,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				vals := make([]string, 0, storageUpdateNum)
 				for j := 0; j < storageUpdateNum; j++ {
 					// only cache 10000 for updating test
-					randomIndex := mathrand.Intn(len(v) - 1)
+					randomIndex := mathrand.Intn(len(v))
 					value := generateValue(7, 16)
 					keys = append(keys, v[randomIndex])
 					vals = append(vals, string(value))
@@ -167,14 +167,15 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 			if len(d.largeStorageTrie) != 2 {
 				panic("large tree is not 2")
 			}
-			index := mathrand.Intn(1)
+			// random choose one large tree to read and write
+			index := mathrand.Intn(2)
 			k := d.largeStorageTrie[index]
 			v := d.largeStorageCache[k]
 			keys := make([]string, 0, storageUpdateNum)
 			vals := make([]string, 0, storageUpdateNum)
 			for j := 0; j < largeStorageUpdateNum; j++ {
 				// only cache 10000 for updating test
-				randomIndex := mathrand.Intn(len(v) - 1)
+				randomIndex := mathrand.Intn(len(v))
 				value := generateValue(7, 16)
 				keys = append(keys, v[randomIndex])
 				vals = append(vals, string(value))
@@ -272,6 +273,7 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 	start := time.Now()
 	ownerHash := string(crypto.Keccak256(CAAccount[0][:]))
 	d.largeStorageTrie[largeTrieIndex] = ownerHash
+	d.owners[largeTrieIndex] = common.BytesToHash([]byte(ownerHash))
 	fmt.Println("large trie owner hash", common.BytesToHash([]byte(ownerHash)))
 	blocks := d.perfConfig.TrieBlocks
 
@@ -294,7 +296,6 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 		}
 	}
 
-	d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
 	fmt.Println("init large storage trie success", "cost time", time.Since(start).Seconds(), "s")
 	return
 }
@@ -319,6 +320,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 	for i := 0; i < len(CAAccount); i++ {
 		start := time.Now()
 		ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
+		d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
 		smallTrees[i] = common.BytesToHash([]byte(ownerHash))
 		blocks := d.perfConfig.TrieBlocks / 10
 		fmt.Printf("init small tree in %d blocks ,  trie szie %d \n", blocks, StorageInitSize)
@@ -340,7 +342,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 			}
 		}
 		d.ownerCache.Add(ownerHash)
-		d.owners = append(d.owners, common.BytesToHash([]byte(ownerHash)))
+
 		//taskMap[ownerHash] = CAKeyValue{
 		//	Keys: keys, Vals: vals}
 		initTrieNum++
@@ -504,7 +506,7 @@ func (d *DBRunner) UpdateDB(
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			for owner, CAKeys := range smallTrieMaps[i] {
+			for owner, CAKeys := range smallTrieMaps[index] {
 				for j := 0; j < len(CAKeys.Keys); j++ {
 					startRead := time.Now()
 					value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
@@ -588,7 +590,7 @@ func (d *DBRunner) UpdateDB(
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			for key, _ := range accountMaps[i] {
+			for key, _ := range accountMaps[index] {
 				startRead := time.Now()
 				value, err := d.db.GetAccount(key)
 				if d.db.GetMPTEngine() == VERSADBEngine {
