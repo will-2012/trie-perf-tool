@@ -37,18 +37,20 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	if err != nil {
 		panic(err)
 	}
-	stateHanlder, err := db.OpenState(version, ethTypes.EmptyRootHash, versa_db.S_COMMIT)
+	stateHanlder, err := db.OpenState(-1, ethTypes.EmptyRootHash, versa_db.S_COMMIT)
 	if err != nil {
+		fmt.Println("failed to open state")
 		panic(err)
 	}
-	rootTree, err := db.OpenTree(stateHanlder, version, common.Hash{}, ethTypes.EmptyRootHash)
+	rootTree, err := db.OpenTree(stateHanlder, -1, common.Hash{}, ethTypes.EmptyRootHash)
 	if err != nil {
+		fmt.Println("failed to open tree")
 		panic(err)
 	}
 	fmt.Println("init version db sucess")
 	return &VersaDBRunner{
 		db:                db,
-		version:           version,
+		version:           -1,
 		stateRoot:         ethTypes.EmptyRootHash,
 		rootTree:          rootTree,
 		stateHandler:      stateHanlder,
