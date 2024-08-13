@@ -216,7 +216,7 @@ func (d *DBRunner) generateInitStorageTasks() InitDBTask {
 		d.largeStorageTrie[i] = ownerHash
 		d.InitSingleStorageTrie(ownerHash, CAKeyValue{
 			Keys: keys, Vals: vals}, true)
-		d.owners[i] = common.BytesToHash([]byte(ownerHash)
+		d.owners[i] = common.BytesToHash([]byte(ownerHash))
 		initTrieNum++
 		fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
 			"finish trie init num", initTrieNum)
