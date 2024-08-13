@@ -104,6 +104,8 @@ func (d *DBRunner) Run(ctx context.Context) {
 			fmt.Println("persist config error")
 		}
 
+	} else {
+		fmt.Println("load config")
 	}
 
 	fmt.Println("init db finish, begin to press kv")
