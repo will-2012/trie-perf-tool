@@ -21,11 +21,12 @@ type CAKeyValue struct {
 }
 
 const (
-	CAStorageSize      = 100
-	CAStorageUpdateNum = 100
-	CAStorageTrieNum   = 10
-	CAStorageInitSize  = 10000000
-	InitAccounts       = 10000000
+	CAStorageSize       = 100
+	CAStorageUpdateNum  = 100
+	CAStorageTrieNum    = 10
+	CAStorageInitSize   = 10000000
+	InitAccounts        = 10000000
+	AccountKeyCacheSize = 200000
 )
 
 type TreeConfig struct {
@@ -155,6 +156,7 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 	random := rand.New(rand.NewSource(0))
 	// Create a realistic account trie to hash
 	addresses = make([][20]byte, size)
+
 	for i := 0; i < len(addresses); i++ {
 		data := make([]byte, 20)
 		random.Read(data)
@@ -162,6 +164,7 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 		rand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
 		copy(addresses[i][:], data)
 	}
+
 	accounts = make([][]byte, len(addresses))
 	for i := 0; i < len(accounts); i++ {
 		var (
@@ -179,23 +182,23 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 	return addresses, accounts
 }
 
-func makeStorage(size int) (addresses [][20]byte, accounts [][]byte) {
+func makeAccountsV2(startIndex, size uint64) (addresses [][20]byte, accounts [][]byte) {
 	random := rand.New(rand.NewSource(0))
 	// Create a realistic account trie to hash
 	addresses = make([][20]byte, size)
-	for i := 0; i < len(addresses); i++ {
-		data := make([]byte, 20)
-		random.Read(data)
-		rand.Seed(time.Now().UnixNano())
-		rand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
-		copy(addresses[i][:], data)
+
+	for i := uint64(0); i < size; i++ {
+		num := startIndex + i
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
+		copy(addresses[i][:], hash[:20])
 	}
+
 	accounts = make([][]byte, len(addresses))
 	for i := 0; i < len(accounts); i++ {
 		var (
 			nonce = uint64(random.Int63())
 			root  = types.EmptyRootHash
-			code  = crypto.Keccak256(generateRandomBytes(20))
+			code  = crypto.Keccak256(nil)
 		)
 		numBytes := random.Uint32() % 33 // [0, 32] bytes
 		balanceBytes := make([]byte, numBytes)
@@ -205,6 +208,30 @@ func makeStorage(size int) (addresses [][20]byte, accounts [][]byte) {
 		accounts[i] = data
 	}
 	return addresses, accounts
+}
+
+func genAccountTrieKey(totalSize, size uint64) (addresses []string) {
+	// Create a realistic account trie to hash
+	addresses = make([]string, size)
+
+	for i := uint64(0); i < size; i++ {
+		num := rand.Intn(int(totalSize / 10))
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
+		addresses[i] = string(hash)
+	}
+	return addresses
+}
+
+func genStorageTrieKey(startIndex, size uint64) (addresses []string) {
+	// Create a realistic account trie to hash
+	addresses = make([]string, size)
+
+	for i := uint64(0); i < size; i++ {
+		num := startIndex + i
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
+		addresses[i] = string(hash)
+	}
+	return addresses
 }
 
 // randomFloat returns a random float64 between 0 and 1
@@ -290,7 +317,7 @@ func generateRandomBytes(length int) []byte {
 	return bytes
 }
 
-func splitMap(originalMap map[string][]byte, n int) []map[string][]byte {
+func splitAccountTask(originalMap map[string][]byte, n int) []map[string][]byte {
 	if n <= 0 {
 		return nil
 	}
@@ -318,7 +345,7 @@ func splitMap(originalMap map[string][]byte, n int) []map[string][]byte {
 	return partitions
 }
 
-func splitMap2(originalMap map[string]CAKeyValue, n int) []map[string]CAKeyValue {
+func splitTrieTask(originalMap map[string]CAKeyValue, n int) []map[string]CAKeyValue {
 	if n <= 0 {
 		return nil
 	}
