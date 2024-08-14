@@ -164,7 +164,6 @@ func (d *DBRunner) Run(ctx context.Context) {
 				d.storageCache[string(owner)] = genStorageTrieKey(uint64(randomIndex), smallStorageInitSize/100)
 				fmt.Println("load small tree owner hash", treeConfig.SmallTrees[i].String())
 			}
-
 		*/
 		// init the account key cache
 		accKeys := genAccountTrieKey(d.perfConfig.AccountsInitSize, AccountKeyCacheSize)
@@ -229,7 +228,6 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 					}
 					taskMap.SmallStorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
 				}
-
 			*/
 			for i := 0; i < len(d.smallStorageTrie); i++ {
 				keys := make([]string, 0, storageUpdateNum)
@@ -278,8 +276,6 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 	/*
 		random := mathrand.New(mathrand.NewSource(0))
-
-
 		CAAccount := make([][20]byte, 1)
 		for i := 0; i < 1; i++ {
 			data := make([]byte, 20)
@@ -288,8 +284,6 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 			mathrand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
 			copy(CAAccount[i][:], data)
 		}
-
-
 	*/
 	StorageInitSize := d.perfConfig.StorageTrieSize
 	start := time.Now()

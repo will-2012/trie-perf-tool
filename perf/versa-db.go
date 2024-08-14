@@ -190,7 +190,6 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 		panic(fmt.Sprintf("failed add account of owner version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
 
-	fmt.Println("owner before: ", string(owner))
 	_, encodedData, err := v.db.Get(v.rootTree, owner)
 	fmt.Println("get account len:", len(encodedData), "owner: ", common.BytesToHash(owner))
 	account := new(ethTypes.StateAccount)
