@@ -222,6 +222,18 @@ func genAccountTrieKey(totalSize, size uint64) (addresses []string) {
 	return addresses
 }
 
+func genOwnerHashKey(size int) (addresses []string) {
+	// Create a realistic account trie to hash
+	addresses = make([]string, size)
+
+	for i := 1; i < size+1; i++ {
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", i*i)))
+		addresses[i-1] = string(hash)
+		fmt.Println("generate  tree owner hash", common.BytesToHash([]byte(addresses[i-1])))
+	}
+	return addresses
+}
+
 func genStorageTrieKey(startIndex, size uint64) (addresses []string) {
 	// Create a realistic account trie to hash
 	addresses = make([]string, size)

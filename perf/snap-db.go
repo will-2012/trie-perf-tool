@@ -21,6 +21,7 @@ import (
 
 type StateDBRunner struct {
 	diskdb            ethdb.KeyValueStore
+	triediskdb        ethdb.Database
 	triedb            *triedb.Database
 	accTrie           *trie.StateTrie
 	nodes             *trienode.MergedNodeSet
@@ -36,7 +37,7 @@ type StateDBRunner struct {
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
-	triedb, _ := MakePBSSTrieDatabase(datadir)
+	triedb, triediskdb, err := MakePBSSTrieDatabase(datadir)
 
 	leveldb, err := rawdb.NewLevelDBDatabase("leveldb", 1000, 20000, "",
 		false)
@@ -44,12 +45,16 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		panic("create leveldb err" + err.Error())
 	}
 
-	rootBytes, err := leveldb.Get(InitFinishRoot)
-	if err == nil && rootBytes != nil {
-		root = common.BytesToHash(rootBytes)
-	}
+	/*
+		rootBytes, err := leveldb.Get(InitFinishRoot)
+		if err == nil && rootBytes != nil {
+			root = common.BytesToHash(rootBytes)
+		}
+	*/
+	_, diskRoot := rawdb.ReadAccountTrieNode(triediskdb, nil)
+	diskRoot = ethTypes.TrieRootHash(diskRoot)
 
-	accTrie, err := trie.NewStateTrie(trie.StateTrieID(root), triedb)
+	accTrie, err := trie.NewStateTrie(trie.StateTrieID(diskRoot), triedb)
 	if err != nil {
 		panic("create state trie err" + err.Error())
 	}
@@ -69,6 +74,7 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		accountsOrigin:    make(map[common.Address][]byte),
 		storagesOrigin:    make(map[common.Address]map[common.Hash][]byte),
 		ownerStorageCache: make(map[common.Hash]common.Hash),
+		triediskdb:        triediskdb,
 	}
 
 	// Initialize with 2 random elements
@@ -196,6 +202,14 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	}
 	if nodes != nil {
 		s.nodes.Merge(nodes)
+	}
+
+	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
+		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+	val, _ := rlp.EncodeToBytes(acc)
+	accErr := s.AddAccount(string(owner), val)
+	if accErr != nil {
+		panic("add count err" + accErr.Error())
 	}
 
 	s.lock.Lock()

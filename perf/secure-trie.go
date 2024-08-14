@@ -18,7 +18,7 @@ type PbssStateTrie struct {
 }
 
 func OpenStateTrie(dataDir string, root common.Hash) *PbssStateTrie {
-	triedb, _ := MakePBSSTrieDatabase(dataDir)
+	triedb, _, _ := MakePBSSTrieDatabase(dataDir)
 
 	t, err := bsctrie.NewStateTrie(bsctrie.TrieID(root), triedb)
 	if err != nil {

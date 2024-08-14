@@ -20,7 +20,7 @@ type PbssRawTrie struct {
 }
 
 func OpenPbssDB(dataDir string, root common.Hash) *PbssRawTrie {
-	triedb, _ := MakePBSSTrieDatabase(dataDir)
+	triedb, _, _ := MakePBSSTrieDatabase(dataDir)
 
 	t, err := bsctrie.New(bsctrie.StateTrieID(root), triedb)
 	if err != nil {
@@ -90,17 +90,17 @@ func createChainDataBase(datadir string) (ethdb.Database, error) {
 }
 
 // MakePBSSTrieDatabase constructs a trie database based on the configured scheme.
-func MakePBSSTrieDatabase(datadir string) (*triedb.Database, error) {
+func MakePBSSTrieDatabase(datadir string) (*triedb.Database, ethdb.Database, error) {
 	diskdb, err := createChainDataBase(datadir)
 	if err != nil {
-		return nil, err
+		return nil, diskdb, err
 	}
 	config := &triedb.Config{
 		PathDB: pathdb.Defaults,
 	}
 
 	//config.PathDB.JournalFilePath = fmt.Sprintf("%s/%s", stack.ResolvePath("chaindata"), eth.JournalFileName)
-	return triedb.NewDatabase(diskdb, config), nil
+	return triedb.NewDatabase(diskdb, config), diskdb, nil
 }
 
 func OpenDatabaseWithFreezer(name string, cache, handles int, ancient, namespace, datadir string) (ethdb.Database, error) {
