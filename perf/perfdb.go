@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	mathrand "math/rand"
-	"math/rand/v2"
 	"os"
 	"sync"
 	"time"
@@ -128,13 +127,13 @@ func (d *DBRunner) Run(ctx context.Context) {
 
 		for i := 0; i < smallTreeNum; i++ {
 			smallStorageInitSize := d.perfConfig.StorageTrieSize / 50
-			randomIndex := rand.IntN(int(smallStorageInitSize / 5))
+			randomIndex := mathrand.Intn(int(smallStorageInitSize / 5))
 			d.storageCache[treeConfig.LargeTrees[i].String()] = genStorageTrieKey(uint64(randomIndex), smallStorageInitSize/100)
 		}
 
 		for i := 0; i < largeTreeNum; i++ {
 			largeStorageInitSize := d.perfConfig.StorageTrieSize
-			randomIndex := rand.IntN(int(largeStorageInitSize / 100))
+			randomIndex := mathrand.Intn(int(largeStorageInitSize / 100))
 			d.storageCache[treeConfig.LargeTrees[i].String()] = genStorageTrieKey(uint64(randomIndex), largeStorageInitSize/1000)
 		}
 
@@ -448,7 +447,7 @@ func (r *DBRunner) RunEmptyBlock(index uint64) {
 func (d *DBRunner) UpdateDB(
 	taskInfo DBTask,
 ) {
-	// todo make it as config
+
 	batchSize := int(d.perfConfig.BatchSize)
 	threadNum := d.perfConfig.NumJobs
 	var wg sync.WaitGroup
@@ -480,7 +479,7 @@ func (d *DBRunner) UpdateDB(
 		}(i)
 	}
 
-	// use one thread to read large storage tries
+	// use one thread to read a random large storage trie
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -628,67 +627,6 @@ func (d *DBRunner) UpdateDB(
 
 }
 
-/*
-func (d *DBRunner) InitStorageTrie(
-
-	taskInfo InitDBTask,
-
-) {
-
-		fmt.Println("init storage trie begin")
-		var owners []common.Hash
-		StorageInitSize := d.perfConfig.StorageTrieSize
-		smallStorageSize := d.perfConfig.StorageTrieSize / 100
-		var snapDB ethdb.KeyValueStore
-		if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
-			// simulate insert key to snap
-			snapDB = d.db.GetFlattenDB()
-		}
-		initTrieNum := 0
-
-		for key, value := range taskInfo {
-			start := time.Now()
-			// add new storage
-			d.db.AddStorage([]byte(key), value.Keys, value.Vals)
-
-			// cache the inserted key for updating test
-			if d.isLargeStorageTrie(key) {
-				d.largeStorageCache[key] = value.Keys[StorageInitSize/2 : StorageInitSize/2+1000000]
-			} else {
-				d.smallStorageTrieCache.Add(key)
-				d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+100000]
-			}
-			owners = append(owners, common.BytesToHash([]byte(key)))
-
-			if snapDB != nil {
-				accHash := common.BytesToHash([]byte(key))
-				for i, k := range value.Keys {
-					rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
-				}
-			}
-			// init 3 accounts to commit a block
-			addresses, accounts := makeAccounts(3)
-			for i := 0; i < len(addresses); i++ {
-				initKey := string(crypto.Keccak256(addresses[i][:]))
-				d.db.AddAccount(initKey, accounts[i])
-				d.accountKeyCache.Add(initKey)
-				if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
-					rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
-				}
-			}
-
-			if _, err := d.db.Commit(); err != nil {
-				panic("failed to commit: " + err.Error())
-			}
-			initTrieNum++
-			fmt.Println("init storage trie success", "cost time", time.Since(start).Seconds(), "s",
-				"finish trie init num", initTrieNum)
-		}
-
-		// init the lock of each tree
-		d.db.InitStorage(owners)
-	}
-*/
 func (d *DBRunner) InitSingleStorageTrie(
 	key string,
 	value CAKeyValue,

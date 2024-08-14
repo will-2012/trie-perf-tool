@@ -72,15 +72,6 @@ func generateTasks(ctx context.Context, taskChan chan<- map[string][]byte, batch
 			for i := 0; i < len(address); i++ {
 				taskMap[string(crypto.Keccak256(address[i][:]))] = acccounts[i]
 			}
-			/*
-				for i := 0; i < int(batchSize)/2; i++ {
-					randomStr := generateValue(32, 32)
-					randomHash := common.BytesToHash(randomStr)
-					path := generateValue(0, 64)
-					taskMap[string(storageTrieNodeKey(randomHash, path))] = generateValue(7, 16)
-				}
-
-			*/
 			taskChan <- taskMap
 		}
 	}
