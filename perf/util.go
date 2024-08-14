@@ -27,6 +27,8 @@ const (
 	CAStorageInitSize   = 10000000
 	InitAccounts        = 10000000
 	AccountKeyCacheSize = 200000
+	trieHash            = "0xd2f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb"
+	trieHash2           = "0x81e080ffc23e8b8d44dd829bc823229e92b893eb1d8f624419d3f5682eb97fc3"
 )
 
 type TreeConfig struct {

@@ -461,7 +461,6 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 
 	for i := 0; i < len(addresses); i++ {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
-		fmt.Println("init key:", initKey, "account len:", len(accounts[i]))
 		err := r.db.AddAccount(initKey, accounts[i])
 		if err != nil {
 			fmt.Println("init account err", err)
@@ -587,7 +586,7 @@ func (d *DBRunner) UpdateDB(
 				d.stat.IncGet(1)
 				if err != nil || value == nil {
 					if err != nil {
-						fmt.Println("fail to get small tree key", err.Error())
+						fmt.Println("fail to get account key", err.Error())
 					}
 					d.stat.IncGetNotExist(1)
 				}

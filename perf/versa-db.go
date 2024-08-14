@@ -75,7 +75,15 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 }
 
 func (v *VersaDBRunner) AddAccount(acckey string, val []byte) error {
-	return v.db.Put(v.rootTree, []byte(acckey), val)
+	err := v.db.Put(v.rootTree, []byte(acckey), val)
+	if err == nil {
+		if common.BytesToHash([]byte(acckey)).String() == trieHash ||
+			common.BytesToHash([]byte(acckey)).String() == trieHash2 {
+			fmt.Printf("db put CA account %s, version %d, val len:%d \n", common.BytesToHash([]byte(acckey)).String(),
+				v.version, len(val))
+		}
+	}
+	return err
 }
 
 func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
@@ -185,13 +193,19 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	if err != nil {
 		fmt.Println("encode acc err", err.Error())
 	}
+
 	err = v.AddAccount(string(owner), val)
 	if err != nil {
 		panic(fmt.Sprintf("failed add account of owner version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
 
 	_, encodedData, err := v.db.Get(v.rootTree, owner)
-	fmt.Println("get account len:", len(encodedData), "owner: ", common.BytesToHash(owner))
+	if common.BytesToHash(owner).String() == trieHash ||
+		common.BytesToHash(owner).String() == trieHash2 {
+		fmt.Printf("db get CA account %s, version %d, val len:%d \n", common.BytesToHash(owner).String(),
+			v.version, len(val))
+	}
+
 	account := new(ethTypes.StateAccount)
 	err = rlp.DecodeBytes(encodedData, account)
 	if err != nil {
@@ -244,7 +258,13 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("get account len:", len(encodedData), "version", versionNum, "owner: ", ownerHash)
+
+			if common.BytesToHash(owner).String() == trieHash ||
+				common.BytesToHash(owner).String() == trieHash2 {
+				fmt.Printf("db get CA account %s, version %d, val len:%d \n", common.BytesToHash(owner).String(),
+					v.version, len(encodedData))
+			}
+			//	fmt.Println("get account len:", len(encodedData), "version", versionNum, "owner: ", ownerHash)
 			account := new(ethTypes.StateAccount)
 			err = rlp.DecodeBytes(encodedData, account)
 			if err != nil {
