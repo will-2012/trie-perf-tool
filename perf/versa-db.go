@@ -105,16 +105,7 @@ func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 		fmt.Println("encode acc err", err.Error())
 	}
 
-	err2 := v.AddAccount(string(owner), val)
-
-	_, encodedData, err := v.db.Get(v.rootTree, owner)
-	fmt.Println("get account len:", len(encodedData), "owner:", ownerHash)
-	account := new(ethTypes.StateAccount)
-	err = rlp.DecodeBytes(encodedData, account)
-	if err != nil {
-		fmt.Println("Failed to decode RLP:", err)
-	}
-	return err2
+	return v.AddAccount(string(owner), val)
 }
 
 func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) common.Hash {
@@ -199,19 +190,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	if err != nil {
 		panic(fmt.Sprintf("failed add account of owner version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
-
-	_, encodedData, err := v.db.Get(v.rootTree, owner)
-	if common.BytesToHash(owner).String() == trieHash ||
-		common.BytesToHash(owner).String() == trieHash2 {
-		fmt.Printf("db get CA account %s, version %d, val len:%d \n", common.BytesToHash(owner).String(),
-			v.version, len(encodedData))
-	}
-
-	account := new(ethTypes.StateAccount)
-	err = rlp.DecodeBytes(encodedData, account)
-	if err != nil {
-		fmt.Println("Failed to decode RLP:", err)
-	}
+	
 	// handler is unuseful after commit
 	v.handlerLock.Lock()
 	delete(v.ownerHandlerCache, ownerHash)
@@ -267,24 +246,13 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-
-			if common.BytesToHash(owner).String() == trieHash ||
-				common.BytesToHash(owner).String() == trieHash2 {
-				fmt.Printf("db get CA account %s, version %d, val len:%d, versrion2 %d, err %v \n",
-					common.BytesToHash(owner).String(),
-					v.version, len(encodedData), versionNum, err)
-			}
 			//	fmt.Println("get account len:", len(encodedData), "version", versionNum, "owner: ", ownerHash)
 			account := new(ethTypes.StateAccount)
 			err = rlp.DecodeBytes(encodedData, account)
 			if err != nil {
-				//fmt.Println("Failed to decode RLP:", err)
-				if common.BytesToHash(owner).String() == trieHash ||
-					common.BytesToHash(owner).String() == trieHash2 {
-					fmt.Printf("Failed to decode RLP %v, db get CA account2 %s, version %d, val len:%d, versrion2 %d\n",
-						err, common.BytesToHash(owner).String(),
-						v.version, len(encodedData), versionNum)
-				}
+				fmt.Printf("Failed to decode RLP %v, db get CA account %s, version %d, val len:%d, versrion2 %d\n",
+					err, common.BytesToHash(owner).String(),
+					v.version, len(encodedData), versionNum)
 				return nil, err
 			}
 			stRoot = account.Root
