@@ -195,7 +195,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		root, exist := s.ownerStorageCache[ownerHash]
 		s.lock.RUnlock()
 		if !exist {
-			encodedData, err := s.GetAccountFromTrie(string(owner))
+			encodedData, err := s.GetAccount(string(owner))
 			if err != nil {
 				return fmt.Errorf("fail to get storage trie root in cache1")
 			}
@@ -318,6 +318,9 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	s.stateRoot = root
 	s.height++
 	s.nodes = trienode.NewMergedNodeSet()
+	s.trieCacheLock.Lock()
+	s.ownerStorageTrieCache = make(map[common.Hash]*trie.StateTrie)
+	s.trieCacheLock.Unlock()
 	return root, nil
 }
 
