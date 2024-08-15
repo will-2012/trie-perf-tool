@@ -133,9 +133,8 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 
 func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
 	// Initialize ownerLocks using the global storageOwners slice
-	for _, ownerHash := range owners {
-		fmt.Println("init lock of owner:", ownerHash)
-		v.treeOpenLocks[ownerHash] = &sync.Mutex{}
+	for i := 0; i < CAStorageTrieNum; i++ {
+		v.treeOpenLocks[owners[i]] = &sync.Mutex{}
 	}
 }
 
@@ -190,7 +189,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	if err != nil {
 		panic(fmt.Sprintf("failed add account of owner version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
-	
+
 	// handler is unuseful after commit
 	v.handlerLock.Lock()
 	delete(v.ownerHandlerCache, ownerHash)

@@ -106,9 +106,10 @@ func (d *DBRunner) Run(ctx context.Context) {
 		smallTrees := d.InitSmallStorageTasks()
 		fmt.Println("init small trie finish")
 
-		for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
+		for i := uint64(0); i < d.perfConfig.AccountsBlocks/2; i++ {
 			d.RunEmptyBlock(i)
 		}
+
 		// init the lock of each tree
 		d.db.InitStorage(d.owners)
 		largeTrees := make([]common.Hash, 2)
@@ -502,11 +503,7 @@ func (r *DBRunner) RunEmptyBlock(index uint64) {
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
-	if r.db.GetMPTEngine() == VERSADBEngine {
-		time.Sleep(300 * time.Millisecond)
-	} else {
-		time.Sleep(10 * time.Millisecond)
-	}
+	time.Sleep(300 * time.Millisecond)
 	fmt.Println("run empty block, number", index)
 }
 
