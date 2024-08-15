@@ -294,7 +294,7 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 	//	ownerHash := string(crypto.Keccak256(CAAccount[0][:]))
 	ownerHash := d.storageOwnerList[largeTrieIndex]
 	d.largeStorageTrie[largeTrieIndex] = ownerHash
-	//	d.owners[largeTrieIndex] = common.BytesToHash([]byte(ownerHash))
+	d.owners[largeTrieIndex] = common.BytesToHash([]byte(ownerHash))
 	fmt.Println("large trie owner hash", common.BytesToHash([]byte(ownerHash)))
 	blocks := d.perfConfig.TrieBlocks
 
@@ -347,7 +347,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 		//	ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		ownerHash := d.storageOwnerList[i+2]
 		d.smallStorageTrie[i] = ownerHash
-		//d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
+		d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
 		smallTrees[i] = common.BytesToHash([]byte(ownerHash))
 		blocks := d.perfConfig.TrieBlocks / 10
 		fmt.Printf("init small tree in %d blocks ,  trie szie %d \n", blocks, StorageInitSize)

@@ -134,8 +134,10 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
 	// Initialize ownerLocks using the global storageOwners slice
 	for i := 0; i < CAStorageTrieNum; i++ {
+		fmt.Println("init lock of owner:", owners[i])
 		v.treeOpenLocks[owners[i]] = &sync.Mutex{}
 	}
+
 }
 
 // UpdateStorage  update batch k,v of storage trie
