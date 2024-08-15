@@ -466,9 +466,15 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 
 	for i := 0; i < len(addresses); i++ {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
+		startPut := time.Now()
 		err := r.db.AddAccount(initKey, accounts[i])
 		if err != nil {
 			fmt.Println("init account err", err)
+		}
+		if r.db.GetMPTEngine() == VERSADBEngine {
+			VersaDBAccPutLatency.Update(time.Since(startPut))
+		} else {
+			StateDBAccPutLatency.Update(time.Since(startPut))
 		}
 		r.accountKeyCache.Add(initKey)
 		if r.db.GetMPTEngine() == StateTrieEngine && r.db.GetFlattenDB() != nil {
@@ -478,8 +484,17 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 		}
 		// double write to leveldb
 	}
+
+	commtStart := time.Now()
 	if _, err := r.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
+	}
+
+	r.commitDuration = time.Since(commtStart)
+	if r.db.GetMPTEngine() == VERSADBEngine {
+		VeraDBCommitLatency.Update(r.commitDuration)
+	} else {
+		stateDBCommitLatency.Update(r.commitDuration)
 	}
 
 	r.trySleep()
@@ -714,9 +729,16 @@ func (d *DBRunner) InitSingleStorageTrie(
 			fmt.Println("init storage err:", err.Error())
 		}
 	} else {
+		startPut := time.Now()
 		err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
 		if err != nil {
 			fmt.Println("update storage err:", err.Error())
+		}
+		microseconds := time.Since(startPut).Microseconds() / int64(len(value.Keys))
+		if d.db.GetMPTEngine() == VERSADBEngine {
+			versaDBStoragePutLatency.Update(time.Duration(microseconds) * time.Microsecond)
+		} else {
+			StateDBStoragePutLatency.Update(time.Duration(microseconds) * time.Microsecond)
 		}
 	}
 
@@ -753,10 +775,16 @@ func (d *DBRunner) InitSingleStorageTrie(
 		}
 	}
 
+	commitStart := time.Now()
 	if _, err = d.db.Commit(); err != nil {
 		panic("failed to commit: " + err.Error())
 	}
-
+	d.commitDuration = time.Since(commitStart)
+	if d.db.GetMPTEngine() == VERSADBEngine {
+		VeraDBCommitLatency.Update(d.commitDuration)
+	} else {
+		stateDBCommitLatency.Update(d.commitDuration)
+	}
 	d.trySleep()
 }
 
