@@ -124,6 +124,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 		ownerList := genOwnerHashKey(CAStorageTrieNum)
 		for i := 0; i < CAStorageTrieNum; i++ {
 			d.storageOwnerList[i] = ownerList[i]
+			d.owners[i] = common.BytesToHash([]byte(d.storageOwnerList[i]))
 		}
 
 		for i := 0; i < 2; i++ {
@@ -144,6 +145,8 @@ func (d *DBRunner) Run(ctx context.Context) {
 			d.storageCache[owner] = genStorageTrieKey(uint64(randomIndex), smallStorageInitSize/100)
 			fmt.Println("load small tree owner hash", common.BytesToHash([]byte(owner)))
 		}
+
+		d.db.InitStorage(d.owners)
 		/*
 			largeTreeNum := len(treeConfig.LargeTrees)
 			for i := 0; i < largeTreeNum; i++ {
@@ -290,7 +293,7 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 	//	ownerHash := string(crypto.Keccak256(CAAccount[0][:]))
 	ownerHash := d.storageOwnerList[largeTrieIndex]
 	d.largeStorageTrie[largeTrieIndex] = ownerHash
-	d.owners[largeTrieIndex] = common.BytesToHash([]byte(ownerHash))
+	//	d.owners[largeTrieIndex] = common.BytesToHash([]byte(ownerHash))
 	fmt.Println("large trie owner hash", common.BytesToHash([]byte(ownerHash)))
 	blocks := d.perfConfig.TrieBlocks
 
@@ -343,7 +346,7 @@ func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
 		//	ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		ownerHash := d.storageOwnerList[i+2]
 		d.smallStorageTrie[i] = ownerHash
-		d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
+		//d.owners[i+2] = common.BytesToHash([]byte(ownerHash))
 		smallTrees[i] = common.BytesToHash([]byte(ownerHash))
 		blocks := d.perfConfig.TrieBlocks / 10
 		fmt.Printf("init small tree in %d blocks ,  trie szie %d \n", blocks, StorageInitSize)
@@ -696,7 +699,7 @@ func (d *DBRunner) InitSingleStorageTrie(
 	value CAKeyValue,
 	firstInsert bool,
 ) {
-	smallStorageSize := d.perfConfig.StorageTrieSize / 100
+	//smallStorageSize := d.perfConfig.StorageTrieSize / 100
 	var snapDB ethdb.KeyValueStore
 	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
 		// simulate insert key to snap
@@ -719,14 +722,18 @@ func (d *DBRunner) InitSingleStorageTrie(
 
 	// cache the inserted key for updating test
 	if d.isLargeStorageTrie(key) {
-		if len(d.largeStorageCache[key]) < 1500000 {
+		if len(d.largeStorageCache[key]) < 500000 {
 			for i := 0; i < len(value.Keys)/500; i++ {
 				d.largeStorageCache[key] = append(d.largeStorageCache[key], value.Keys[i])
 			}
 		}
 		//	d.largeStorageCache[key] = value.Keys[StorageInitSize/100 : StorageInitSize/100+StorageInitSize/100]
 	} else {
-		d.storageCache[key] = value.Keys[smallStorageSize/2 : smallStorageSize/2+smallStorageSize/5]
+		if len(d.storageCache[key]) < 100000 {
+			for i := 0; i < len(value.Keys)/50; i++ {
+				d.storageCache[key] = append(d.storageCache[key], value.Keys[i])
+			}
+		}
 	}
 
 	if snapDB != nil {

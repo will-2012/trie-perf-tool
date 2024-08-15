@@ -70,7 +70,7 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
-		treeOpenLocks:     make(map[common.Hash]*sync.Mutex),
+		treeOpenLocks:     make(map[common.Hash]*sync.Mutex, CAStorageTrieNum),
 	}
 }
 
@@ -143,6 +143,7 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
 	// Initialize ownerLocks using the global storageOwners slice
 	for _, ownerHash := range owners {
+		fmt.Println("init lock of owner:", ownerHash)
 		v.treeOpenLocks[ownerHash] = &sync.Mutex{}
 	}
 }
@@ -194,7 +195,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 		fmt.Println("encode acc err", err.Error())
 	}
 
-	err = v.AddAccount(string(owner), val)
+	err = v.UpdateAccount(owner, val)
 	if err != nil {
 		panic(fmt.Sprintf("failed add account of owner version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
@@ -203,7 +204,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	if common.BytesToHash(owner).String() == trieHash ||
 		common.BytesToHash(owner).String() == trieHash2 {
 		fmt.Printf("db get CA account %s, version %d, val len:%d \n", common.BytesToHash(owner).String(),
-			v.version, len(val))
+			v.version, len(encodedData))
 	}
 
 	account := new(ethTypes.StateAccount)
@@ -236,7 +237,15 @@ func (v *VersaDBRunner) UpdateAccount(key, value []byte) error {
 		fmt.Println("update account no value update")
 		return nil
 	}
-	return v.db.Put(v.rootTree, key, value)
+	err = v.db.Put(v.rootTree, key, value)
+	if err == nil {
+		if common.BytesToHash([]byte(key)).String() == trieHash ||
+			common.BytesToHash([]byte(key)).String() == trieHash2 {
+			fmt.Printf("db put CA account %s, version %d, val len:%d \n", common.BytesToHash([]byte(key)).String(),
+				v.version, len(value))
+		}
+	}
+	return err
 }
 
 func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
@@ -261,14 +270,21 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 
 			if common.BytesToHash(owner).String() == trieHash ||
 				common.BytesToHash(owner).String() == trieHash2 {
-				fmt.Printf("db get CA account %s, version %d, val len:%d \n", common.BytesToHash(owner).String(),
-					v.version, len(encodedData))
+				fmt.Printf("db get CA account %s, version %d, val len:%d, versrion2 %d, err %v \n",
+					common.BytesToHash(owner).String(),
+					v.version, len(encodedData), versionNum, err)
 			}
 			//	fmt.Println("get account len:", len(encodedData), "version", versionNum, "owner: ", ownerHash)
 			account := new(ethTypes.StateAccount)
 			err = rlp.DecodeBytes(encodedData, account)
 			if err != nil {
-				fmt.Println("Failed to decode RLP:", err)
+				//fmt.Println("Failed to decode RLP:", err)
+				if common.BytesToHash(owner).String() == trieHash ||
+					common.BytesToHash(owner).String() == trieHash2 {
+					fmt.Printf("Failed to decode RLP %v, db get CA account2 %s, version %d, val len:%d, versrion2 %d\n",
+						err, common.BytesToHash(owner).String(),
+						v.version, len(encodedData), versionNum)
+				}
 				return nil, err
 			}
 			stRoot = account.Root
@@ -293,8 +309,12 @@ func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 		tHandler = *handler
 	}
 	_, val, err := v.db.Get(tHandler, key)
-	if found && err != nil {
-		fmt.Println("failed to read key using caching tree hanlder, err:", err.Error())
+	if err != nil {
+		if found {
+			fmt.Println("failed to read key using caching tree hanlder, err:", err.Error())
+		} else {
+			fmt.Println("failed to open tree and read key, err:", err.Error())
+		}
 	}
 	return val, err
 }

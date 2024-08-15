@@ -53,6 +53,7 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	*/
 	_, diskRoot := rawdb.ReadAccountTrieNode(triediskdb, nil)
 	diskRoot = ethTypes.TrieRootHash(diskRoot)
+	fmt.Println("disk root is:", diskRoot)
 
 	accTrie, err := trie.NewStateTrie(trie.StateTrieID(diskRoot), triedb)
 	if err != nil {
@@ -246,6 +247,10 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 		}
 	}
 
+	if s.parentRoot == ethTypes.EmptyRootHash {
+		fmt.Println()
+	}
+	fmt.Println("commit success, root", root, "parent root", s.parentRoot)
 	set := triestate.New(s.accountsOrigin, s.storagesOrigin, nil)
 	err = s.triedb.Update(root, s.parentRoot, uint64(s.height), s.nodes, set)
 	if err != nil {
@@ -257,7 +262,6 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 	s.stateRoot = root
 	s.height++
 	s.nodes = trienode.NewMergedNodeSet()
-	s.MarkInitRoot(root)
 	return root, nil
 }
 
