@@ -202,10 +202,15 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 				return err
 			}
 			root = account.Root
+			fmt.Println("new state trie use CA root", root)
 		}
 
 		id := trie.StorageTrieID(s.stateRoot, ownerHash, root)
-		stTrie, _ = trie.NewStateTrie(id, s.triedb)
+		stTrie, err = trie.NewStateTrie(id, s.triedb)
+		if err != nil {
+			panic("err new state trie" + err.Error())
+		}
+
 		s.trieCacheLock.Lock()
 		s.ownerStorageTrieCache[ownerHash] = stTrie
 		s.trieCacheLock.Unlock()
@@ -227,6 +232,10 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		s.nodes.Merge(nodes)
 	}
 
+	s.lock.Lock()
+	s.ownerStorageCache[ownerHash] = root
+	s.lock.Unlock()
+	// update the CA account on root tree
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
@@ -235,10 +244,6 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		panic("add count err" + accErr.Error())
 	}
 	s.AddSnapAccount(string(owner), val)
-
-	s.lock.Lock()
-	s.ownerStorageCache[ownerHash] = root
-	s.lock.Unlock()
 
 	return err
 }
