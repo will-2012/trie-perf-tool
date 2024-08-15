@@ -197,7 +197,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 			account := new(ethTypes.StateAccount)
 			err = rlp.DecodeBytes(encodedData, account)
 			if err != nil {
-				fmt.Printf("Failed to decode RLP %v, db get CA account %s, val len:%d \n",
+				fmt.Printf("failed to decode RLP %v, db get CA account %s, val len:%d \n",
 					err, common.BytesToHash(owner).String(), len(encodedData))
 				return err
 			}
@@ -230,10 +230,11 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
-	accErr := s.AddAccount(string(owner), val)
+	accErr := s.UpdateAccount(owner, val)
 	if accErr != nil {
 		panic("add count err" + accErr.Error())
 	}
+	s.AddSnapAccount(string(owner), val)
 
 	s.lock.Lock()
 	s.ownerStorageCache[ownerHash] = root
