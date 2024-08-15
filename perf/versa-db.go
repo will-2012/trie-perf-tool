@@ -75,15 +75,7 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 }
 
 func (v *VersaDBRunner) AddAccount(acckey string, val []byte) error {
-	err := v.db.Put(v.rootTree, []byte(acckey), val)
-	if err == nil {
-		if common.BytesToHash([]byte(acckey)).String() == trieHash ||
-			common.BytesToHash([]byte(acckey)).String() == trieHash2 {
-			fmt.Printf("db put CA account %s, version %d, val len:%d \n", common.BytesToHash([]byte(acckey)).String(),
-				v.version, len(val))
-		}
-	}
-	return err
+	return v.db.Put(v.rootTree, []byte(acckey), val)
 }
 
 func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
@@ -217,15 +209,7 @@ func (v *VersaDBRunner) UpdateAccount(key, value []byte) error {
 		fmt.Println("update account no value update")
 		return nil
 	}
-	err = v.db.Put(v.rootTree, key, value)
-	if err == nil {
-		if common.BytesToHash([]byte(key)).String() == trieHash ||
-			common.BytesToHash([]byte(key)).String() == trieHash2 {
-			fmt.Printf("db put CA account %s, version %d, val len:%d \n", common.BytesToHash([]byte(key)).String(),
-				v.version, len(value))
-		}
-	}
-	return err
+	return v.db.Put(v.rootTree, key, value)
 }
 
 func (v *VersaDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
