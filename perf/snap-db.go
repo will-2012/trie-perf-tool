@@ -72,12 +72,13 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		accTrie:               accTrie,
 		nodes:                 nodeSet,
 		height:                0,
-		parentRoot:            ethTypes.EmptyRootHash,
+		parentRoot:            diskRoot,
 		accountsOrigin:        make(map[common.Address][]byte),
 		storagesOrigin:        make(map[common.Address]map[common.Hash][]byte),
 		ownerStorageCache:     make(map[common.Hash]common.Hash),
 		ownerStorageTrieCache: make(map[common.Hash]*trie.StateTrie),
 		triediskdb:            triediskdb,
+		stateRoot:             diskRoot,
 	}
 
 	// Initialize with 2 random elements
@@ -123,6 +124,10 @@ func (v *StateDBRunner) AddAccount(acckey string, val []byte) error {
 
 func (v *StateDBRunner) GetAccount(acckey string) ([]byte, error) {
 	return rawdb.ReadAccountSnapshot(v.diskdb, common.BytesToHash([]byte(acckey))), nil
+}
+
+func (v *StateDBRunner) GetAccountFromTrie(acckey string) ([]byte, error) {
+	return v.accTrie.MustGet([]byte(acckey)), nil
 }
 
 func (v *StateDBRunner) AddSnapAccount(acckey string, val []byte) {
@@ -190,7 +195,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		root, exist := s.ownerStorageCache[ownerHash]
 		s.lock.RUnlock()
 		if !exist {
-			encodedData, err := s.GetAccount(string(owner))
+			encodedData, err := s.GetAccountFromTrie(string(owner))
 			if err != nil {
 				return fmt.Errorf("fail to get storage trie root in cache1")
 			}
@@ -238,7 +243,10 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	// update the CA account on root tree
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
-	val, _ := rlp.EncodeToBytes(acc)
+	val, err := rlp.EncodeToBytes(acc)
+	if err != nil {
+		panic("encode CA account err" + err.Error())
+	}
 	accErr := s.UpdateAccount(owner, val)
 	if accErr != nil {
 		panic("add count err" + accErr.Error())
@@ -246,6 +254,27 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	s.AddSnapAccount(string(owner), val)
 
 	return err
+}
+
+func (s *StateDBRunner) RepairSnap(owners []string) {
+	for i := 0; i < len(owners); i++ {
+		encodedData, err := s.GetAccountFromTrie(owners[i])
+		if err != nil {
+			panic("fail to repair snap" + err.Error())
+		}
+
+		account := new(ethTypes.StateAccount)
+		err = rlp.DecodeBytes(encodedData, account)
+		if err != nil {
+			fmt.Printf("failed to decode RLP %v, db get CA account %s, val len:%d \n",
+				err, common.BytesToHash([]byte(owners[i])), len(encodedData))
+		}
+		root := account.Root
+		fmt.Printf("repair the snap of owner hash:%s, repair root %v \n",
+			common.BytesToHash([]byte(owners[i])), root)
+
+		s.AddSnapAccount(owners[i], encodedData)
+	}
 }
 
 func (s *StateDBRunner) UpdateAccount(key, value []byte) error {
@@ -275,17 +304,16 @@ func (s *StateDBRunner) Commit() (common.Hash, error) {
 		}
 	}
 
-	if s.parentRoot == ethTypes.EmptyRootHash {
-		fmt.Println()
-	}
-	fmt.Println("commit success, root", root, "parent root", s.parentRoot)
 	set := triestate.New(s.accountsOrigin, s.storagesOrigin, nil)
 	err = s.triedb.Update(root, s.parentRoot, uint64(s.height), s.nodes, set)
 	if err != nil {
 		fmt.Println("trie update err", err.Error())
 	}
 
-	s.accTrie, _ = trie.NewStateTrie(trie.TrieID(root), s.triedb)
+	s.accTrie, err = trie.NewStateTrie(trie.TrieID(root), s.triedb)
+	if err != nil {
+		fmt.Println("new acc trie err", err.Error())
+	}
 	s.parentRoot = root
 	s.stateRoot = root
 	s.height++

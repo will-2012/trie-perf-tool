@@ -375,3 +375,7 @@ func (p *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 func (p *VersaDBRunner) MarkInitRoot(hash common.Hash) {
 	return
 }
+
+func (p *VersaDBRunner) RepairSnap(owners []string) {
+	return
+}

@@ -67,7 +67,7 @@ func NewDBRunner(
 		largeStorageCache: make(map[string][]string),
 		largeStorageTrie:  make([]string, 2),
 		smallStorageTrie:  make([]string, CAStorageTrieNum-2),
-		storageOwnerList:  make([]string, CAStorageSize),
+		storageOwnerList:  make([]string, CAStorageTrieNum),
 		owners:            make([]common.Hash, 10),
 	}
 
@@ -148,6 +148,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 		}
 
 		d.db.InitStorage(d.owners)
+		d.db.RepairSnap(d.storageOwnerList)
 		/*
 			largeTreeNum := len(treeConfig.LargeTrees)
 			for i := 0; i < largeTreeNum; i++ {
@@ -675,12 +676,14 @@ func (d *DBRunner) UpdateDB(
 			insertKey := common.BytesToHash([]byte(key))
 			rawdb.WriteAccountSnapshot(snapDB, insertKey, value)
 		}
+
 		for key, value := range taskInfo.SmallStorageTask {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {
 				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
 			}
 		}
+
 		for key, value := range taskInfo.LargeStorageTask {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {

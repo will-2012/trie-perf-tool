@@ -49,6 +49,8 @@ type StateDatabase interface {
 	InitStorage(owners []common.Hash)
 
 	MarkInitRoot(hash common.Hash)
+
+	RepairSnap(owners []string)
 }
 
 type TrieBatch interface {
