@@ -20,20 +20,21 @@ import (
 )
 
 type StateDBRunner struct {
-	diskdb            ethdb.KeyValueStore
-	triediskdb        ethdb.Database
-	triedb            *triedb.Database
-	accTrie           *trie.StateTrie
-	nodes             *trienode.MergedNodeSet
-	stateTrie         PbssStateTrie
-	parentRoot        common.Hash
-	height            int64
-	accountsOrigin    map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
-	storagesOrigin    map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp forma
-	stateRoot         common.Hash
-	ownerStorageCache map[common.Hash]common.Hash
-	lock              sync.RWMutex
-	//ownerStorageTrieCache map[common.Hash]trie.StateTrie
+	diskdb                ethdb.KeyValueStore
+	triediskdb            ethdb.Database
+	triedb                *triedb.Database
+	accTrie               *trie.StateTrie
+	nodes                 *trienode.MergedNodeSet
+	stateTrie             PbssStateTrie
+	parentRoot            common.Hash
+	height                int64
+	accountsOrigin        map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
+	storagesOrigin        map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp forma
+	stateRoot             common.Hash
+	ownerStorageCache     map[common.Hash]common.Hash
+	lock                  sync.RWMutex
+	trieCacheLock         sync.RWMutex
+	ownerStorageTrieCache map[common.Hash]*trie.StateTrie
 }
 
 func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
@@ -66,16 +67,17 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 	}
 
 	s := &StateDBRunner{
-		diskdb:            leveldb,
-		triedb:            triedb,
-		accTrie:           accTrie,
-		nodes:             nodeSet,
-		height:            0,
-		parentRoot:        ethTypes.EmptyRootHash,
-		accountsOrigin:    make(map[common.Address][]byte),
-		storagesOrigin:    make(map[common.Address]map[common.Hash][]byte),
-		ownerStorageCache: make(map[common.Hash]common.Hash),
-		triediskdb:        triediskdb,
+		diskdb:                leveldb,
+		triedb:                triedb,
+		accTrie:               accTrie,
+		nodes:                 nodeSet,
+		height:                0,
+		parentRoot:            ethTypes.EmptyRootHash,
+		accountsOrigin:        make(map[common.Address][]byte),
+		storagesOrigin:        make(map[common.Address]map[common.Hash][]byte),
+		ownerStorageCache:     make(map[common.Hash]common.Hash),
+		ownerStorageTrieCache: make(map[common.Hash]*trie.StateTrie),
+		triediskdb:            triediskdb,
 	}
 
 	// Initialize with 2 random elements
@@ -179,15 +181,35 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	var err error
 	ownerHash := common.BytesToHash(owner)
 	// try to get version and root from cache first
-	s.lock.RLock()
-	root, exist := s.ownerStorageCache[ownerHash]
-	s.lock.RUnlock()
-	if !exist {
-		return fmt.Errorf("fail to get storage trie root in cache")
-	}
+	var stTrie *trie.StateTrie
+	s.trieCacheLock.RLock()
+	stTrie, found := s.ownerStorageTrieCache[ownerHash]
+	s.trieCacheLock.RUnlock()
+	if !found {
+		s.lock.RLock()
+		root, exist := s.ownerStorageCache[ownerHash]
+		s.lock.RUnlock()
+		if !exist {
+			encodedData, err := s.GetAccount(string(owner))
+			if err != nil {
+				return fmt.Errorf("fail to get storage trie root in cache1")
+			}
+			account := new(ethTypes.StateAccount)
+			err = rlp.DecodeBytes(encodedData, account)
+			if err != nil {
+				fmt.Printf("Failed to decode RLP %v, db get CA account %s, val len:%d \n",
+					err, common.BytesToHash(owner).String(), len(encodedData))
+				return err
+			}
+			root = account.Root
+		}
 
-	id := trie.StorageTrieID(s.stateRoot, ownerHash, root)
-	stTrie, _ := trie.NewStateTrie(id, s.triedb)
+		id := trie.StorageTrieID(s.stateRoot, ownerHash, root)
+		stTrie, _ = trie.NewStateTrie(id, s.triedb)
+		s.trieCacheLock.Lock()
+		s.ownerStorageTrieCache[ownerHash] = stTrie
+		s.trieCacheLock.Unlock()
+	}
 	for i, k := range keys {
 		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
 	}
