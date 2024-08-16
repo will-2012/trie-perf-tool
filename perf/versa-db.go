@@ -38,7 +38,7 @@ type StorageCache struct {
 
 func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	db, err := versaDB.NewVersaDB(path, &versaDB.VersaDBConfig{
-		FlushInterval:  200,
+		FlushInterval:  1000,
 		MaxStatesInMem: 128,
 	})
 	if err != nil {
@@ -70,7 +70,6 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
-		treeOpenLocks:     make(map[common.Hash]*sync.Mutex, CAStorageTrieNum),
 	}
 }
 
@@ -123,9 +122,11 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	return hash
 }
 
-func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
+func (v *VersaDBRunner) InitStorage(owners []common.Hash, trieNum int) {
+	v.treeOpenLocks = make(map[common.Hash]*sync.Mutex, trieNum)
+
 	// Initialize ownerLocks using the global storageOwners slice
-	for i := 0; i < CAStorageTrieNum; i++ {
+	for i := 0; i < trieNum; i++ {
 		fmt.Println("init lock of owner:", owners[i])
 		v.treeOpenLocks[owners[i]] = &sync.Mutex{}
 	}
@@ -370,10 +371,6 @@ func (v *VersaDBRunner) GetMPTEngine() string {
 
 func (p *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return nil
-}
-
-func (p *VersaDBRunner) MarkInitRoot(hash common.Hash) {
-	return
 }
 
 func (p *VersaDBRunner) RepairSnap(owners []string) {

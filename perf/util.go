@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type CAKeyValue struct {
@@ -27,8 +29,7 @@ const (
 	CAStorageInitSize   = 10000000
 	InitAccounts        = 10000000
 	AccountKeyCacheSize = 200000
-	trieHash            = "0xd2f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb"
-	trieHash2           = "0x81e080ffc23e8b8d44dd829bc823229e92b893eb1d8f624419d3f5682eb97fc3"
+	LargeStorageTrieNum = 2
 )
 
 type TreeConfig struct {
@@ -229,9 +230,9 @@ func genOwnerHashKey(size int) (addresses []string) {
 	addresses = make([]string, size)
 
 	for i := 1; i < size+1; i++ {
-		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", i*i)))
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", i)))
 		addresses[i-1] = string(hash)
-		fmt.Println("generate  tree owner hash", common.BytesToHash([]byte(addresses[i-1])))
+		fmt.Println("generate tree owner hash", common.BytesToHash([]byte(addresses[i-1])))
 	}
 	return addresses
 }
@@ -385,4 +386,44 @@ func splitTrieTask(originalMap map[string]CAKeyValue, n int) []map[string]CAKeyV
 	}
 
 	return partitions
+}
+
+func ReadConfig(filename string) (*TreeConfig, error) {
+	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
+		return nil, fmt.Errorf("config file %s does not exist", filename)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	config := &TreeConfig{}
+	err = toml.NewDecoder(file).Decode(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(config.LargeTrees) != 2 || len(config.SmallTrees) != 8 {
+		return nil, fmt.Errorf("config file must contain 2 large trees and 8 small trees, but found %d large trees and %d small trees",
+			len(config.LargeTrees), len(config.SmallTrees))
+	}
+
+	return config, nil
+}
+
+func WriteConfig(config *TreeConfig) error {
+	file, err := os.Create("config.toml")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	err = toml.NewEncoder(file).Encode(config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
