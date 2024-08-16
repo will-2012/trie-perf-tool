@@ -143,8 +143,9 @@ func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 	if err != nil {
 		return err
 	}
-	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
+	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+
 	val, _ := rlp.EncodeToBytes(acc)
 	v.AddAccount(string(owner), val)
 	return nil
@@ -176,7 +177,7 @@ func (s *StateDBRunner) GetStorage(owner []byte, key []byte) ([]byte, error) {
 }
 
 // UpdateStorage  update batch k,v of storage trie
-func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string) error {
+func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string) (common.Hash, error) {
 	var err error
 	ownerHash := common.BytesToHash(owner)
 	// try to get version and root from cache first
@@ -191,14 +192,14 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		if !exist {
 			encodedData, err := s.GetAccount(string(owner))
 			if err != nil {
-				return fmt.Errorf("fail to get storage trie root in cache1")
+				return ethTypes.EmptyRootHash, fmt.Errorf("fail to get storage trie root in cache1")
 			}
 			account := new(ethTypes.StateAccount)
 			err = rlp.DecodeBytes(encodedData, account)
 			if err != nil {
 				fmt.Printf("failed to decode RLP %v, db get CA account %s, val len:%d \n",
 					err, common.BytesToHash(owner).String(), len(encodedData))
-				return err
+				return ethTypes.EmptyRootHash, err
 			}
 			root = account.Root
 			fmt.Println("new state trie use CA root", root)
@@ -225,7 +226,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 
 	root, nodes, err := stTrie.Commit(true)
 	if err != nil {
-		return err
+		return ethTypes.EmptyRootHash, err
 	}
 	if nodes != nil {
 		s.nodes.Merge(nodes)
@@ -235,7 +236,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	s.ownerStorageCache[ownerHash] = root
 	s.lock.Unlock()
 	// update the CA account on root tree
-	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
+	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
 		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
@@ -247,7 +248,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	}
 	s.AddSnapAccount(string(owner), val)
 
-	return err
+	return root, err
 }
 
 func (s *StateDBRunner) RepairSnap(owners []string) {

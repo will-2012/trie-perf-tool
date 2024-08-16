@@ -54,11 +54,23 @@ type DBTask struct {
 	LargeStorageTask map[string]CAKeyValue
 }
 
+type VerifyTask struct {
+	AccountTask map[string][]byte
+	StorageTask map[string]CAKeyValue
+}
+
 func NewDBTask() DBTask {
 	return DBTask{
 		AccountTask:      make(map[string][]byte),
 		SmallStorageTask: make(map[string]CAKeyValue),
 		LargeStorageTask: make(map[string]CAKeyValue),
+	}
+}
+
+func NewVerifyTask() VerifyTask {
+	return VerifyTask{
+		AccountTask: make(map[string][]byte),
+		StorageTask: make(map[string]CAKeyValue),
 	}
 }
 

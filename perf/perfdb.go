@@ -573,7 +573,7 @@ func (d *DBRunner) UpdateDB(
 	for key, value := range taskInfo.SmallStorageTask {
 		startPut := time.Now()
 		// add new storage
-		err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		_, err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
 		if err != nil {
 			fmt.Println("update storage err", err.Error())
 		}
@@ -590,7 +590,7 @@ func (d *DBRunner) UpdateDB(
 	for key, value := range taskInfo.LargeStorageTask {
 		startPut := time.Now()
 		// add new storage
-		err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		_, err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
 		if err != nil {
 			fmt.Println("update storage err", err.Error())
 		}
@@ -676,7 +676,7 @@ func (d *DBRunner) InitSingleStorageTrie(
 		}
 	} else {
 		startPut := time.Now()
-		err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		_, err = d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
 		if err != nil {
 			fmt.Println("update storage err:", err.Error())
 		}

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -88,8 +87,8 @@ func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
 func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
 	ownerHash := common.BytesToHash(owner)
 	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
-	random := rand.New(rand.NewSource(0))
-	acc := &ethTypes.StateAccount{Nonce: uint64(random.Int63()), Balance: uint256.NewInt(3),
+	//random := rand.New(rand.NewSource(0))
+	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
@@ -134,7 +133,7 @@ func (v *VersaDBRunner) InitStorage(owners []common.Hash, trieNum int) {
 }
 
 // UpdateStorage  update batch k,v of storage trie
-func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []string) error {
+func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []string) (common.Hash, error) {
 	var err error
 	ownerHash := common.BytesToHash(owner)
 	var tHandler versaDB.TreeHandler
@@ -155,7 +154,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 			stRoot := cache.stRoot
 			tHandler, err = v.db.OpenTree(v.stateHandler, versionNum, ownerHash, stRoot)
 			if err != nil {
-				return fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
+				return ethTypes.EmptyRootHash, fmt.Errorf("failed to open tree, version: %d, owner: %s, block height %d, err: %v", versionNum,
 					ownerHash.String(), v.version, err.Error())
 			}
 		}
@@ -172,8 +171,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 		panic(fmt.Sprintf("failed to commit tree, version: %d, owner: %d, err: %s", version, owner, err.Error()))
 	}
 
-	random := rand.New(rand.NewSource(0))
-	acc := &ethTypes.StateAccount{Nonce: uint64(random.Int63()), Balance: uint256.NewInt(3),
+	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
 		Root: hash, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
@@ -198,7 +196,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	// update the cache for read
 	v.lock.Unlock()
 
-	return nil
+	return hash, nil
 }
 
 func (v *VersaDBRunner) UpdateAccount(key, value []byte) error {

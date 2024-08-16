@@ -36,7 +36,7 @@ type StateDatabase interface {
 
 	GetStorage(owner []byte, key []byte) ([]byte, error)
 
-	UpdateStorage(owner []byte, keys []string, value []string) error
+	UpdateStorage(owner []byte, keys []string, value []string) (common.Hash, error)
 
 	Commit() (common.Hash, error)
 

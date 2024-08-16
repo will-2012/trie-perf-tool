@@ -77,6 +77,14 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:  "verify-db",
+				Usage: "verify hash root of state database by comparing",
+				Action: func(c *cli.Context) error {
+					verifyDB(c)
+					return nil
+				},
+			},
 		},
 
 		Flags: []cli.Flag{
@@ -303,6 +311,20 @@ func verifyHash(c *cli.Context) error {
 	verifyer := NewVerifyer(secureTrie, versaTrie, parsePerfConfig(c), 10)
 	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
 	defer cancel()
+	fmt.Println("begin to verify root hash, the batch size of block is", verifyer.perfConfig.BatchSize)
+	verifyer.Run(ctx)
+	return nil
+}
+
+func verifyDB(c *cli.Context) error {
+	VersaDB := OpenVersaDB("versa-db", -1)
+	dir, _ := os.Getwd()
+	stateDB := NewStateRunner(filepath.Join(dir, "state-trie-dir"), types.EmptyRootHash)
+
+	ctx, cancel := context.WithTimeout(context.Background(), c.Duration("runtime"))
+	defer cancel()
+	verifyer := NewStateVerifyer(stateDB, VersaDB, parsePerfConfig(c), 10)
+
 	fmt.Println("begin to verify root hash, the batch size of block is", verifyer.perfConfig.BatchSize)
 	verifyer.Run(ctx)
 	return nil
