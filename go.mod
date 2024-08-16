@@ -3,7 +3,7 @@ module mpt-perf
 go 1.22
 
 require (
-	github.com/bnb-chain/versioned-state-database v0.0.0-20240816135713-0b206ff52681
+	github.com/bnb-chain/versioned-state-database v0.0.0-20240816144701-a2da748ae414
 	github.com/ethereum/go-ethereum v1.14.7
 	github.com/holiman/uint256 v1.3.0
 	github.com/syndtr/goleveldb v1.0.1
