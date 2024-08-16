@@ -70,7 +70,6 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
-		treeOpenLocks:     make(map[common.Hash]*sync.Mutex, CAStorageTrieNum),
 	}
 }
 
@@ -123,9 +122,11 @@ func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals [
 	return hash
 }
 
-func (v *VersaDBRunner) InitStorage(owners []common.Hash) {
+func (v *VersaDBRunner) InitStorage(owners []common.Hash, trieNum int) {
+	v.treeOpenLocks = make(map[common.Hash]*sync.Mutex, trieNum)
+
 	// Initialize ownerLocks using the global storageOwners slice
-	for i := 0; i < CAStorageTrieNum; i++ {
+	for i := 0; i < trieNum; i++ {
 		fmt.Println("init lock of owner:", owners[i])
 		v.treeOpenLocks[owners[i]] = &sync.Mutex{}
 	}

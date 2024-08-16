@@ -229,7 +229,7 @@ func genOwnerHashKey(size int) (addresses []string) {
 	addresses = make([]string, size)
 
 	for i := 1; i < size+1; i++ {
-		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", i*i)))
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", i)))
 		addresses[i-1] = string(hash)
 		fmt.Println("generate  tree owner hash", common.BytesToHash([]byte(addresses[i-1])))
 	}

@@ -53,6 +53,7 @@ func NewDBRunner(
 	config PerfConfig,
 	taskBufferSize int, // Added a buffer size parameter for the task channel
 ) *DBRunner {
+	CATrieNum := int(config.StorageTrieNum)
 	runner := &DBRunner{
 		db:                    db,
 		stat:                  NewStat(),
@@ -61,13 +62,13 @@ func NewDBRunner(
 		taskChan:              make(chan DBTask, taskBufferSize),
 		initTaskChan:          make(chan DBTask, taskBufferSize),
 		accountKeyCache:       NewFixedSizeSet(AccountKeyCacheSize),
-		smallStorageTrieCache: NewFixedSizeSet(CAStorageTrieNum - 2),
+		smallStorageTrieCache: NewFixedSizeSet(CATrieNum - 2),
 		//	storageCache:    lru.NewCache[string, []byte](100000),
 		storageCache:      make(map[string][]string),
 		largeStorageCache: make(map[string][]string),
 		largeStorageTrie:  make([]string, 2),
-		smallStorageTrie:  make([]string, CAStorageTrieNum-2),
-		storageOwnerList:  make([]string, CAStorageTrieNum),
+		smallStorageTrie:  make([]string, CATrieNum-2),
+		storageOwnerList:  make([]string, CATrieNum),
 		owners:            make([]common.Hash, 10),
 	}
 
@@ -78,7 +79,8 @@ func (d *DBRunner) Run(ctx context.Context) {
 	defer close(d.taskChan)
 	// init the state db
 	blocks := d.perfConfig.AccountsBlocks
-
+	CATrieNum := int(d.perfConfig.StorageTrieNum)
+	fmt.Println("init storage trie number:", CATrieNum)
 	_, err := d.ReadConfig("config.toml")
 	if err != nil {
 		fmt.Println("parse config err", err.Error())
@@ -90,28 +92,43 @@ func (d *DBRunner) Run(ctx context.Context) {
 		for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
 			startIndex := uint64(i * accPerBatch)
 			d.InitAccount(i, startIndex, accPerBatch)
+			if i > 1 && i%20000 == 0 {
+				fmt.Println("running empty block for 5000 blocks")
+				for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
+					d.RunEmptyBlock(j)
+				}
+			}
 		}
 
-		ownerList := genOwnerHashKey(CAStorageTrieNum)
-		for i := 0; i < CAStorageTrieNum; i++ {
+		ownerList := genOwnerHashKey(CATrieNum)
+		for i := 0; i < CATrieNum; i++ {
 			d.storageOwnerList[i] = ownerList[i]
 		}
 		fmt.Println("fail to load config")
 		d.InitLargeStorageTasks(0)
+		fmt.Println("running empty block for 5000 blocks")
+		for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
+			d.RunEmptyBlock(j)
+		}
 
-		fmt.Println("init one large trie finish")
+		fmt.Println("init the frist large trie finish")
 		d.InitLargeStorageTasks(1)
 
-		fmt.Println("init two large trie finish")
+		fmt.Println("running empty block for 5000 blocks")
+		for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
+			d.RunEmptyBlock(j)
+		}
+
+		fmt.Println("init the second large trie finish")
 		smallTrees := d.InitSmallStorageTasks()
 		fmt.Println("init small trie finish")
 
-		for i := uint64(0); i < d.perfConfig.AccountsBlocks/2; i++ {
+		for i := uint64(0); i < d.perfConfig.AccountsBlocks/50; i++ {
 			d.RunEmptyBlock(i)
 		}
 
 		// init the lock of each tree
-		d.db.InitStorage(d.owners)
+		d.db.InitStorage(d.owners, CATrieNum)
 		largeTrees := make([]common.Hash, 2)
 		largeTrees[0] = common.BytesToHash([]byte(d.largeStorageTrie[0]))
 		largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
@@ -122,8 +139,8 @@ func (d *DBRunner) Run(ctx context.Context) {
 		}
 	} else {
 		fmt.Println("load config")
-		ownerList := genOwnerHashKey(CAStorageTrieNum)
-		for i := 0; i < CAStorageTrieNum; i++ {
+		ownerList := genOwnerHashKey(CATrieNum)
+		for i := 0; i < CATrieNum; i++ {
 			d.storageOwnerList[i] = ownerList[i]
 			d.owners[i] = common.BytesToHash([]byte(d.storageOwnerList[i]))
 		}
@@ -133,13 +150,13 @@ func (d *DBRunner) Run(ctx context.Context) {
 			d.largeStorageTrie[i] = owner
 			largeStorageInitSize := d.perfConfig.StorageTrieSize
 			randomIndex := mathrand.Intn(int(d.perfConfig.StorageTrieSize / 100))
-			d.largeStorageCache[string(owner)] = genStorageTrieKey(uint64(randomIndex), largeStorageInitSize/1000)
+			d.largeStorageCache[owner] = genStorageTrieKey(uint64(randomIndex), largeStorageInitSize/1000)
 			fmt.Println("load large tree owner hash", common.BytesToHash([]byte(owner)))
 		}
 
-		for i := 0; i < CAStorageTrieNum-2; i++ {
+		for i := 0; i < CATrieNum-2; i++ {
 			owner := d.storageOwnerList[i+2]
-			d.smallStorageTrieCache.Add(string(owner))
+			d.smallStorageTrieCache.Add(owner)
 			d.smallStorageTrie[i] = string(owner)
 			smallStorageInitSize := d.perfConfig.StorageTrieSize / 50
 			randomIndex := mathrand.Intn(int(smallStorageInitSize / 5))
@@ -147,7 +164,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 			fmt.Println("load small tree owner hash", common.BytesToHash([]byte(owner)))
 		}
 
-		d.db.InitStorage(d.owners)
+		d.db.InitStorage(d.owners, CATrieNum)
 		d.db.RepairSnap(d.storageOwnerList)
 		/*
 			largeTreeNum := len(treeConfig.LargeTrees)
@@ -180,9 +197,9 @@ func (d *DBRunner) Run(ctx context.Context) {
 
 	fmt.Println("init db finish, begin to press kv")
 	// Start task generation thread
-	go d.generateRunTasks(ctx, d.perfConfig.BatchSize)
+	//	go d.generateRunTasks(ctx, d.perfConfig.BatchSize)
 
-	d.runInternal(ctx)
+	//	d.runInternal(ctx)
 }
 
 func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
@@ -324,26 +341,13 @@ func (d *DBRunner) InitLargeStorageTasks(largeTrieIndex int) {
 }
 
 func (d *DBRunner) InitSmallStorageTasks() []common.Hash {
-
-	//random := mathrand.New(mathrand.NewSource(0))
-	smallTrees := make([]common.Hash, CAStorageTrieNum-2)
-	/*
-		CAAccount := make([][20]byte, CAStorageTrieNum-2)
-		for i := 0; i < len(CAAccount); i++ {
-			data := make([]byte, 20)
-			random.Read(data)
-			mathrand.Seed(time.Now().UnixNano())
-			mathrand.Shuffle(len(data), func(i, j int) { data[i], data[j] = data[j], data[i] })
-			copy(CAAccount[i][:], data)
-		}
-
-	*/
-
+	CATrieNum := d.perfConfig.StorageTrieNum
+	smallTrees := make([]common.Hash, CATrieNum-2)
 	initTrieNum := 0
 	// init small tree by the config trie size
 	StorageInitSize := d.perfConfig.StorageTrieSize / 50
 
-	for i := 0; i < CAStorageTrieNum-2; i++ {
+	for i := 0; i < int(CATrieNum-2); i++ {
 		start := time.Now()
 		//	ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		ownerHash := d.storageOwnerList[i+2]
@@ -502,24 +506,27 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 }
 
 func (r *DBRunner) RunEmptyBlock(index uint64) {
-	addresses, accounts := makeAccounts(1)
+	/*
+		addresses, accounts := makeAccounts(1)
 
-	for i := 0; i < len(addresses); i++ {
-		initKey := string(crypto.Keccak256(addresses[i][:]))
-		r.db.AddAccount(initKey, accounts[i])
-		r.accountKeyCache.Add(initKey)
-		if r.db.GetMPTEngine() == StateTrieEngine && r.db.GetFlattenDB() != nil {
-			// simulate insert key to snap
-			snapDB := r.db.GetFlattenDB()
-			rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+		for i := 0; i < len(addresses); i++ {
+			initKey := string(crypto.Keccak256(addresses[i][:]))
+			r.db.AddAccount(initKey, accounts[i])
+			r.accountKeyCache.Add(initKey)
+			if r.db.GetMPTEngine() == StateTrieEngine && r.db.GetFlattenDB() != nil {
+				// simulate insert key to snap
+				snapDB := r.db.GetFlattenDB()
+				rawdb.WriteAccountSnapshot(snapDB, common.BytesToHash([]byte(initKey)), accounts[i])
+			}
 		}
-		// double write to leveldb
-	}
 
-	if _, err := r.db.Commit(); err != nil {
-		panic("failed to commit: " + err.Error())
-	}
-	time.Sleep(300 * time.Millisecond)
+		if _, err := r.db.Commit(); err != nil {
+			panic("failed to commit: " + err.Error())
+		}
+
+	*/
+
+	time.Sleep(500 * time.Millisecond)
 	fmt.Println("run empty block, number", index)
 }
 
@@ -616,9 +623,9 @@ func (d *DBRunner) UpdateDB(
 	d.totalReadCost += d.rDuration
 
 	if d.db.GetMPTEngine() == VERSADBEngine {
-		VeraDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Milliseconds())
+		VeraDBGetTps.Update(int64(float64(batchSize) / float64(d.rDuration.Microseconds()) * 1000))
 	} else {
-		stateDBGetTps.Update(int64(d.perfConfig.NumJobs*batchSize) / d.rDuration.Milliseconds())
+		stateDBGetTps.Update(int64(float64(batchSize) / float64(d.rDuration.Microseconds()) * 1000))
 	}
 
 	start = time.Now()
@@ -678,9 +685,9 @@ func (d *DBRunner) UpdateDB(
 	d.totalWriteCost += d.wDuration
 
 	if d.db.GetMPTEngine() == VERSADBEngine {
-		VeraDBPutTps.Update(int64(batchSize) / d.wDuration.Milliseconds())
+		VeraDBPutTps.Update(int64(float64(batchSize) / float64(d.wDuration.Microseconds()) * 1000))
 	} else {
-		stateDBPutTps.Update(int64(batchSize) / d.wDuration.Milliseconds())
+		stateDBPutTps.Update(int64(float64(batchSize) / float64(d.wDuration.Microseconds()) * 1000))
 	}
 
 	if d.db.GetMPTEngine() == StateTrieEngine && d.db.GetFlattenDB() != nil {
@@ -749,9 +756,8 @@ func (d *DBRunner) InitSingleStorageTrie(
 				d.largeStorageCache[key] = append(d.largeStorageCache[key], value.Keys[i])
 			}
 		}
-		//	d.largeStorageCache[key] = value.Keys[StorageInitSize/100 : StorageInitSize/100+StorageInitSize/100]
 	} else {
-		if len(d.storageCache[key]) < 100000 {
+		if len(d.storageCache[key]) < 200000 {
 			for i := 0; i < len(value.Keys)/50; i++ {
 				d.storageCache[key] = append(d.storageCache[key], value.Keys[i])
 			}
@@ -789,7 +795,7 @@ func (d *DBRunner) InitSingleStorageTrie(
 }
 
 func (d *DBRunner) trySleep() {
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 }
 
 func (d *DBRunner) isLargeStorageTrie(owner string) bool {

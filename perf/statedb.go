@@ -46,7 +46,7 @@ type StateDatabase interface {
 
 	GetFlattenDB() ethdb.KeyValueStore
 
-	InitStorage(owners []common.Hash)
+	InitStorage(owners []common.Hash, trieNum int)
 
 	MarkInitRoot(hash common.Hash)
 

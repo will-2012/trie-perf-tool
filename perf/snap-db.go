@@ -46,12 +46,6 @@ func NewStateRunner(datadir string, root common.Hash) *StateDBRunner {
 		panic("create leveldb err" + err.Error())
 	}
 
-	/*
-		rootBytes, err := leveldb.Get(InitFinishRoot)
-		if err == nil && rootBytes != nil {
-			root = common.BytesToHash(rootBytes)
-		}
-	*/
 	_, diskRoot := rawdb.ReadAccountTrieNode(triediskdb, nil)
 	diskRoot = ethTypes.TrieRootHash(diskRoot)
 	fmt.Println("disk root is:", diskRoot)
@@ -289,7 +283,7 @@ func (s *StateDBRunner) UpdateAccount(key, value []byte) error {
 	return nil
 }
 
-func (s *StateDBRunner) InitStorage(owners []common.Hash) {
+func (s *StateDBRunner) InitStorage(owners []common.Hash, trieNum int) {
 	return
 }
 
