@@ -298,14 +298,16 @@ func (d *DBRunner) UpdateDB(
 			d.keyCache.Add(key)
 		} else {
 			// add new storage
-			d.db.AddStorage([]byte(key), value.Keys, value.Vals)
-			if d.db.GetMPTEngine() == VERSADBEngine {
-				versaDBStoragePutLatency.Update(time.Since(startPut))
-			} else {
-				StateDBStoragePutLatency.Update(time.Since(startPut))
+			err := d.db.AddStorage([]byte(key), value.Keys, value.Vals)
+			if err == nil {
+				if d.db.GetMPTEngine() == VERSADBEngine {
+					versaDBStoragePutLatency.Update(time.Since(startPut))
+				} else {
+					StateDBStoragePutLatency.Update(time.Since(startPut))
+				}
+				d.storageCache.Add(key, []byte(value.Keys[2]))
+				d.ownerCache.Add(key)
 			}
-			d.storageCache.Add(key, []byte(value.Keys[2]))
-			d.ownerCache.Add(key)
 		}
 		d.stat.IncPut(1)
 	}

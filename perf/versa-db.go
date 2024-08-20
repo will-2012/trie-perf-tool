@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	versa_db "versioned-state-database"
+	versa_db "github.com/bnb-chain/versioned-state-database"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -31,24 +31,26 @@ type StorageCache struct {
 
 func OpenVersaDB(path string, version int64) *VersaDBRunner {
 	db, err := versa_db.NewVersaDB(path, &versa_db.VersaDBConfig{
-		FlushInterval:  200,
+		FlushInterval:  1000,
 		MaxStatesInMem: 128,
 	})
 	if err != nil {
 		panic(err)
 	}
-	stateHanlder, err := db.OpenState(version, ethTypes.EmptyRootHash, versa_db.S_COMMIT)
+	stateHanlder, err := db.OpenState(-1, ethTypes.EmptyRootHash, versa_db.S_COMMIT)
 	if err != nil {
+		fmt.Println("failed to open state")
 		panic(err)
 	}
-	rootTree, err := db.OpenTree(stateHanlder, version, common.Hash{}, ethTypes.EmptyRootHash)
+	rootTree, err := db.OpenTree(stateHanlder, -1, common.Hash{}, ethTypes.EmptyRootHash)
 	if err != nil {
+		fmt.Println("failed to open tree")
 		panic(err)
 	}
 	fmt.Println("init version db sucess")
 	return &VersaDBRunner{
 		db:                db,
-		version:           version,
+		version:           -1,
 		stateRoot:         ethTypes.EmptyRootHash,
 		rootTree:          rootTree,
 		stateHandler:      stateHanlder,
@@ -71,6 +73,9 @@ func (v *VersaDBRunner) GetAccount(acckey string) ([]byte, error) {
 func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) error {
 	ownerHash := common.BytesToHash(owner)
 	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
+	if stRoot.Cmp(common.Hash{}) == 0 {
+		return fmt.Errorf("failed to make storage trie")
+	}
 	acc := &ethTypes.StateAccount{Balance: uint256.NewInt(3),
 		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
 	val, _ := rlp.EncodeToBytes(acc)
@@ -81,7 +86,8 @@ func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 func (v *VersaDBRunner) makeStorageTrie(owner common.Hash, keys []string, vals []string) common.Hash {
 	tHandler, err := v.db.OpenTree(v.stateHandler, v.version, owner, ethTypes.EmptyRootHash)
 	if err != nil {
-		panic(fmt.Sprintf("failed to open tree, version: %d, owner: %d, err: %s", version, owner, err.Error()))
+		fmt.Sprintf("failed to open tree, version: %d, owner: %d, err: %s", v.version, owner, err.Error())
+		return common.Hash{}
 	}
 	for i, k := range keys {
 		v.db.Put(tHandler, []byte(k), []byte(vals[i]))
