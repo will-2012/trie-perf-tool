@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	mathrand "math/rand"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -73,6 +74,10 @@ func NewDBRunner(
 
 func (d *DBRunner) Run(ctx context.Context) {
 	defer close(d.taskChan)
+
+	debug.SetGCPercent(80)
+	debug.SetMemoryLimit(48 * 1024 * 1024 * 1024)
+
 	// init the state db
 	blocks := d.perfConfig.AccountsBlocks
 	CATrieNum := int(d.perfConfig.StorageTrieNum)
@@ -80,17 +85,38 @@ func (d *DBRunner) Run(ctx context.Context) {
 	_, err := ReadConfig("config.toml")
 	if err != nil {
 		fmt.Printf("init account in %d blocks , account num %d \n", blocks, d.perfConfig.AccountsInitSize)
-		accSize := d.perfConfig.AccountsInitSize
-		accBatch := d.perfConfig.AccountsBlocks
-		accPerBatch := accSize / accBatch
 
-		for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
-			startIndex := uint64(i * accPerBatch)
-			d.InitAccount(i, startIndex, accPerBatch)
-			if i > 1 && i%20000 == 0 {
-				fmt.Println("running empty block for 5000 blocks")
-				for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
-					d.RunEmptyBlock(j)
+		diskVersion := d.db.GetVersion()
+		fmt.Println("disk version is", diskVersion)
+		if diskVersion < 10 {
+			accSize := d.perfConfig.AccountsInitSize
+			accBatch := d.perfConfig.AccountsBlocks
+			accPerBatch := accSize / accBatch
+
+			for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
+				startIndex := uint64(i * accPerBatch)
+				d.InitAccount(i, startIndex, accPerBatch)
+				if i > 1 && i%20000 == 0 {
+					fmt.Println("running empty block for 5000 blocks")
+					for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
+						d.RunEmptyBlock(j)
+					}
+				}
+			}
+		} else {
+			fmt.Println("continue to press")
+			accSize := d.perfConfig.AccountsInitSize - uint64(diskVersion*1000)
+			accBatch := d.perfConfig.AccountsBlocks - uint64(diskVersion)
+			accPerBatch := accSize / accBatch
+
+			for i := uint64(0); i < accBatch; i++ {
+				startIndex := uint64(i * accPerBatch)
+				d.InitAccount(i+uint64(diskVersion), startIndex, accPerBatch)
+				if i > 1 && i%20000 == 0 {
+					fmt.Println("running empty block for 5000 blocks")
+					for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
+						d.RunEmptyBlock(j)
+					}
 				}
 			}
 		}

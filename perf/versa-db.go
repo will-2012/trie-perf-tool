@@ -27,6 +27,7 @@ type VersaDBRunner struct {
 	handlerLock       sync.RWMutex
 	lock              sync.RWMutex
 	treeOpenLocks     map[common.Hash]*sync.Mutex
+	diskVersion       int64
 	//	storageOwners     []common.Hash // Global slice for storage owners
 }
 
@@ -69,6 +70,7 @@ func OpenVersaDB(path string, version int64) *VersaDBRunner {
 		stateHandler:      stateHanlder,
 		ownerHandlerCache: make(map[common.Hash]versaDB.TreeHandler),
 		ownerStorageCache: make(map[common.Hash]StorageCache),
+		diskVersion:       version,
 	}
 }
 
@@ -367,10 +369,14 @@ func (v *VersaDBRunner) GetMPTEngine() string {
 	return VERSADBEngine
 }
 
-func (p *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
+func (v *VersaDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return nil
 }
 
-func (p *VersaDBRunner) RepairSnap(owners []string) {
+func (v *VersaDBRunner) RepairSnap(owners []string) {
 	return
+}
+
+func (v *VersaDBRunner) GetVersion() int64 {
+	return v.diskVersion
 }

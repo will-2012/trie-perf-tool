@@ -330,3 +330,7 @@ func (s *StateDBRunner) GetMPTEngine() string {
 func (p *StateDBRunner) GetFlattenDB() ethdb.KeyValueStore {
 	return p.diskdb
 }
+
+func (s *StateDBRunner) GetVersion() int64 {
+	return -1
+}
