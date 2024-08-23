@@ -94,7 +94,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 			accPerBatch := accSize / accBatch
 
 			for i := uint64(0); i < d.perfConfig.AccountsBlocks; i++ {
-				startIndex := uint64(i * accPerBatch)
+				startIndex := i * accPerBatch
 				d.InitAccount(i, startIndex, accPerBatch)
 				if i > 1 && i%20000 == 0 {
 					fmt.Println("running empty block for 5000 blocks")
@@ -110,7 +110,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 			accPerBatch := accSize / accBatch
 
 			for i := uint64(0); i < accBatch; i++ {
-				startIndex := uint64(i * accPerBatch)
+				startIndex := i * accPerBatch
 				d.InitAccount(i+uint64(diskVersion), startIndex, accPerBatch)
 				if i > 1 && i%20000 == 0 {
 					fmt.Println("running empty block for 5000 blocks")
@@ -153,6 +153,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 		if err = WriteConfig(config); err != nil {
 			fmt.Println("persist config error")
 		}
+
 	} else {
 		fmt.Println("reload the db and restart press test")
 		ownerList := genOwnerHashKey(CATrieNum)

@@ -30,6 +30,7 @@ const (
 	InitAccounts        = 10000000
 	AccountKeyCacheSize = 200000
 	LargeStorageTrieNum = 2
+	MaxCATrieNum        = 20000
 )
 
 type TreeConfig struct {
@@ -203,7 +204,7 @@ func makeAccountsV2(startIndex, size uint64) (addresses [][20]byte, accounts [][
 	addresses = make([][20]byte, size)
 
 	for i := uint64(0); i < size; i++ {
-		num := startIndex + i
+		num := startIndex + i + MaxCATrieNum
 		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
 		copy(addresses[i][:], hash[:20])
 	}
