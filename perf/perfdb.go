@@ -698,6 +698,10 @@ func (d *DBRunner) InitSingleStorageTrie(
 
 	var err error
 	if firstInsert {
+		v, err2 := d.db.GetAccount(key)
+		if err2 == nil && len(v) > 0 {
+			fmt.Println("already exit the account of storage trie", key)
+		}
 		// add new storage
 		err = d.db.AddStorage([]byte(key), value.Keys, value.Vals)
 		if err != nil {
