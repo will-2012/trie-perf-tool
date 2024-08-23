@@ -134,29 +134,29 @@ func (d *DBRunner) Run(ctx context.Context) {
 		}
 
 		/*
-			d.InitLargeStorageTries()
+				d.InitLargeStorageTries()
 
-			fmt.Println("init the second large trie finish")
-			smallTrees := d.InitSmallStorageTrie()
-			fmt.Println("init small trie finish")
+				fmt.Println("init the second large trie finish")
+				smallTrees := d.InitSmallStorageTrie()
+				fmt.Println("init small trie finish")
 
-			for i := uint64(0); i < d.perfConfig.AccountsBlocks/50; i++ {
-				d.RunEmptyBlock(i)
+				for i := uint64(0); i < d.perfConfig.AccountsBlocks/50; i++ {
+					d.RunEmptyBlock(i)
+				}
+
+				// init the lock of each tree
+				d.db.InitStorage(d.owners, CATrieNum)
+
+
+			largeTrees := make([]common.Hash, 2)
+			largeTrees[0] = common.BytesToHash([]byte(d.largeStorageTrie[0]))
+			largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
+
+			config := &TreeConfig{largeTrees, smallTrees}
+			if err = WriteConfig(config); err != nil {
+				fmt.Println("persist config error")
 			}
-
-			// init the lock of each tree
-			d.db.InitStorage(d.owners, CATrieNum)
-		
 		*/
-		largeTrees := make([]common.Hash, 2)
-		largeTrees[0] = common.BytesToHash([]byte(d.largeStorageTrie[0]))
-		largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
-
-		config := &TreeConfig{largeTrees, smallTrees}
-		if err = WriteConfig(config); err != nil {
-			fmt.Println("persist config error")
-		}
-
 	} else {
 		fmt.Println("reload the db and restart press test")
 		ownerList := genOwnerHashKey(CATrieNum)
