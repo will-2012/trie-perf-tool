@@ -231,48 +231,49 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				}
 			}
 
-			// small storage trie write 3/5 kv of storage
-			storageUpdateNum := int(batchSize) / 5 * 3 / len(d.smallStorageTrie)
-			//	StorageInitSize := d.perfConfig.StorageTrieSize
-			for i := 0; i < len(d.smallStorageTrie); i++ {
+			/*
+				// small storage trie write 3/5 kv of storage
+				storageUpdateNum := int(batchSize) / 5 * 3 / len(d.smallStorageTrie)
+				//	StorageInitSize := d.perfConfig.StorageTrieSize
+				for i := 0; i < len(d.smallStorageTrie); i++ {
+					keys := make([]string, 0, storageUpdateNum)
+					vals := make([]string, 0, storageUpdateNum)
+					//owner := d.smallStorageTrie[i]
+					owner := d.storageOwnerList[i+2]
+					//fmt.Println("generate owner ", owner)
+					v := d.storageCache[owner]
+					//fmt.Println("small tree cache key len ", len(v))
+					for j := 0; j < storageUpdateNum; j++ {
+						// only cache 10000 for updating test
+						randomIndex := mathrand.Intn(len(v))
+						keys = append(keys, v[randomIndex])
+						vals = append(vals, string(generateValue(7, 16)))
+					}
+					taskMap.SmallStorageTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
+				}
+
+				// large storage trie write 1/5 kv of storage
+				largeStorageUpdateNum := int(batchSize) / 5
+				if len(d.largeStorageTrie) != 2 {
+					panic("large tree is not 2")
+				}
+				// random choose one large tree to read and write
+				index := mathrand.Intn(2)
+				//	k := d.largeStorageTrie[index]
+				k := d.storageOwnerList[index]
+				v := d.largeStorageCache[k]
+				//fmt.Println("large tree cache key len ", len(v))
 				keys := make([]string, 0, storageUpdateNum)
 				vals := make([]string, 0, storageUpdateNum)
-				//owner := d.smallStorageTrie[i]
-				owner := d.storageOwnerList[i+2]
-				//fmt.Println("generate owner ", owner)
-				v := d.storageCache[owner]
-				//fmt.Println("small tree cache key len ", len(v))
-				for j := 0; j < storageUpdateNum; j++ {
+				for j := 0; j < largeStorageUpdateNum; j++ {
 					// only cache 10000 for updating test
 					randomIndex := mathrand.Intn(len(v))
+					value := generateValue(7, 16)
 					keys = append(keys, v[randomIndex])
-					vals = append(vals, string(generateValue(7, 16)))
+					vals = append(vals, string(value))
 				}
-				taskMap.SmallStorageTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
-			}
-
-			// large storage trie write 1/5 kv of storage
-			largeStorageUpdateNum := int(batchSize) / 5
-			if len(d.largeStorageTrie) != 2 {
-				panic("large tree is not 2")
-			}
-			// random choose one large tree to read and write
-			index := mathrand.Intn(2)
-			//	k := d.largeStorageTrie[index]
-			k := d.storageOwnerList[index]
-			v := d.largeStorageCache[k]
-			//fmt.Println("large tree cache key len ", len(v))
-			keys := make([]string, 0, storageUpdateNum)
-			vals := make([]string, 0, storageUpdateNum)
-			for j := 0; j < largeStorageUpdateNum; j++ {
-				// only cache 10000 for updating test
-				randomIndex := mathrand.Intn(len(v))
-				value := generateValue(7, 16)
-				keys = append(keys, v[randomIndex])
-				vals = append(vals, string(value))
-			}
-			taskMap.LargeStorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
-
+				taskMap.LargeStorageTask[k] = CAKeyValue{Keys: keys, Vals: vals}
+			*/
 			d.taskChan <- taskMap
 		}
 	}
@@ -508,59 +509,60 @@ func (d *DBRunner) UpdateDB(
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	smallTrieMaps := splitTrieTask(taskInfo.SmallStorageTask, threadNum-1)
+	/*
+		smallTrieMaps := splitTrieTask(taskInfo.SmallStorageTask, threadNum-1)
 
-	for i := 0; i < threadNum-1; i++ {
+		for i := 0; i < threadNum-1; i++ {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				for owner, CAKeys := range smallTrieMaps[index] {
+					for j := 0; j < len(CAKeys.Keys); j++ {
+						startRead := time.Now()
+						value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
+						if d.db.GetMPTEngine() == VERSADBEngine {
+							VersaDBAccGetLatency.Update(time.Since(startRead))
+						} else {
+							StateDBAccGetLatency.Update(time.Since(startRead))
+						}
+						d.stat.IncGet(1)
+						if err != nil || value == nil {
+							if err != nil {
+								fmt.Println("fail to get small trie key", err.Error())
+							}
+							d.stat.IncGetNotExist(1)
+						}
+					}
+				}
+			}(i)
+		}
+
+		// use one thread to read a random large storage trie
 		wg.Add(1)
-		go func(index int) {
+		go func() {
 			defer wg.Done()
-			for owner, CAKeys := range smallTrieMaps[index] {
-				for j := 0; j < len(CAKeys.Keys); j++ {
+			for owner, CAkeys := range taskInfo.LargeStorageTask {
+				for i := 0; i < len(CAkeys.Keys); i++ {
 					startRead := time.Now()
-					value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
+					value, err := d.db.GetStorage([]byte(owner), []byte(CAkeys.Keys[i]))
 					if d.db.GetMPTEngine() == VERSADBEngine {
-						VersaDBAccGetLatency.Update(time.Since(startRead))
+						versaDBStorageGetLatency.Update(time.Since(startRead))
 					} else {
-						StateDBAccGetLatency.Update(time.Since(startRead))
+						StateDBStorageGetLatency.Update(time.Since(startRead))
 					}
 					d.stat.IncGet(1)
 					if err != nil || value == nil {
 						if err != nil {
-							fmt.Println("fail to get small trie key", err.Error())
+							fmt.Println("fail to get large tree key", err.Error())
 						}
 						d.stat.IncGetNotExist(1)
 					}
 				}
 			}
-		}(i)
-	}
+		}()
 
-	// use one thread to read a random large storage trie
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for owner, CAkeys := range taskInfo.LargeStorageTask {
-			for i := 0; i < len(CAkeys.Keys); i++ {
-				startRead := time.Now()
-				value, err := d.db.GetStorage([]byte(owner), []byte(CAkeys.Keys[i]))
-				if d.db.GetMPTEngine() == VERSADBEngine {
-					versaDBStorageGetLatency.Update(time.Since(startRead))
-				} else {
-					StateDBStorageGetLatency.Update(time.Since(startRead))
-				}
-				d.stat.IncGet(1)
-				if err != nil || value == nil {
-					if err != nil {
-						fmt.Println("fail to get large tree key", err.Error())
-					}
-					d.stat.IncGetNotExist(1)
-				}
-			}
-		}
-	}()
-
-	wg.Wait()
-
+		wg.Wait()
+	*/
 	accountMaps := splitAccountTask(taskInfo.AccountTask, threadNum)
 	//  read 1/5 kv of account
 	for i := 0; i < threadNum; i++ {
