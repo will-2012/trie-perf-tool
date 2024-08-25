@@ -76,7 +76,7 @@ func (d *DBRunner) Run(ctx context.Context) {
 	debug.SetMemoryLimit(48 * 1024 * 1024 * 1024)
 
 	// init the state db
-	blocks := d.perfConfig.AccountsBlocks
+	//blocks := d.perfConfig.AccountsBlocks
 	CATrieNum := int(d.perfConfig.StorageTrieNum)
 	fmt.Println("init storage trie number:", CATrieNum)
 	_, err := ReadConfig("config.toml")
@@ -510,7 +510,7 @@ func (d *DBRunner) UpdateDB(
 ) {
 
 	batchSize := int(d.perfConfig.BatchSize)
-	threadNum := d.perfConfig.NumJobs
+	//	threadNum := d.perfConfig.NumJobs
 	var wg sync.WaitGroup
 	start := time.Now()
 
