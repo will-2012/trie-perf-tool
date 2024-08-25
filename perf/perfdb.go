@@ -147,9 +147,9 @@ func (d *DBRunner) Run(ctx context.Context) {
 		// init the lock of each tree
 		d.db.InitStorage(d.owners, CATrieNum)
 
-		largeTrees := make([]common.Hash, 2)
+		largeTrees := make([]common.Hash, 1)
 		largeTrees[0] = common.BytesToHash([]byte(d.largeStorageTrie[0]))
-		largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
+		//largeTrees[1] = common.BytesToHash([]byte(d.largeStorageTrie[1]))
 
 		/*
 			config := &TreeConfig{largeTrees, smallTrees}
@@ -343,7 +343,7 @@ func (d *DBRunner) InitSmallStorageTrie() []common.Hash {
 		StorageInitSize = d.perfConfig.StorageTrieSize / 50
 	}
 
-	for i := 0; i < int(CATrieNum-LargeStorageTrieNum-44); i++ {
+	for i := 0; i < int(CATrieNum-LargeStorageTrieNum); i++ {
 		//	ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		ownerHash := d.storageOwnerList[i+2]
 		d.smallStorageTrie[i] = ownerHash
