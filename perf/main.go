@@ -36,6 +36,7 @@ type PerfConfig struct {
 	MetricsAddr      string
 	MetricsPort      int
 	StorageTrieSize  uint64
+	SmallStorageSize uint64
 	StorageTrieNum   uint64
 	AccountsInitSize uint64
 	AccountsBlocks   uint64
@@ -138,8 +139,15 @@ func main() {
 				Name:        "triesize",
 				Aliases:     []string{"ts"},
 				Usage:       "storage trie size",
-				Value:       1000000,
+				Value:       10000000,
 				Destination: &config.StorageTrieSize,
+			},
+			&cli.Uint64Flag{
+				Name:        "smallstorage",
+				Aliases:     []string{"ss"},
+				Usage:       "small storage trie size",
+				Value:       1500000,
+				Destination: &config.SmallStorageSize,
 			},
 			&cli.Uint64Flag{
 				Name:        "trienum",
@@ -338,6 +346,7 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 	minValueSize := c.Uint64("min_value_size")
 	deleteRatio := c.Float64("delete_ratio")
 	trieSize := c.Uint64("triesize")
+	smallTrieSize := c.Uint64("smallstorage")
 	trieNum := c.Uint64("trienum")
 	accounts := c.Uint64("accounts")
 	accountBlock := c.Uint64("account_block")
@@ -350,6 +359,7 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 		MaxValueSize:     maxValueSize,
 		DeleteRatio:      deleteRatio,
 		StorageTrieSize:  trieSize,
+		SmallStorageSize: smallTrieSize,
 		AccountsInitSize: accounts,
 		AccountsBlocks:   accountBlock,
 		TrieBlocks:       trieBlock,

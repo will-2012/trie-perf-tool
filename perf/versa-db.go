@@ -206,6 +206,9 @@ func (v *VersaDBRunner) UpdateAccount(key, value []byte) error {
 	if err != nil {
 		return err
 	}
+	if len(originValue) == 0 {
+		return fmt.Errorf("get account nil when update")
+	}
 	if bytes.Equal(originValue, value) {
 		fmt.Println("update account no value update")
 		return nil

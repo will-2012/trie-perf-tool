@@ -215,9 +215,12 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		s.ownerStorageTrieCache[ownerHash] = stTrie
 		s.trieCacheLock.Unlock()
 	}
-	for i, k := range keys {
-		stTrie.MustUpdate([]byte(k), []byte(vals[i]))
-	}
+
+	/*
+		for i, k := range keys {
+			stTrie.MustUpdate([]byte(k), []byte(vals[i]))
+		}
+	*/
 
 	// update batch storage trie
 	for i := 0; i < len(keys) && i < len(vals); i++ {
@@ -252,7 +255,26 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 }
 
 func (s *StateDBRunner) RepairSnap(owners []string) {
-	for i := 0; i < len(owners); i++ {
+	for i := 0; i < 2; i++ {
+		encodedData, err := s.GetAccountFromTrie(owners[i])
+		if err != nil {
+			panic("fail to repair snap" + err.Error())
+		}
+
+		account := new(ethTypes.StateAccount)
+		err = rlp.DecodeBytes(encodedData, account)
+		if err != nil {
+			fmt.Printf("failed to decode RLP %v, db get CA account %s, val len:%d \n",
+				err, common.BytesToHash([]byte(owners[i])), len(encodedData))
+		}
+		root := account.Root
+		fmt.Printf("repair the snap of owner hash:%s, repair root %v \n",
+			common.BytesToHash([]byte(owners[i])), root)
+
+		s.AddSnapAccount(owners[i], encodedData)
+	}
+
+	for i := MaxLargeStorageTrieNum - 1; i < len(owners); i++ {
 		encodedData, err := s.GetAccountFromTrie(owners[i])
 		if err != nil {
 			panic("fail to repair snap" + err.Error())

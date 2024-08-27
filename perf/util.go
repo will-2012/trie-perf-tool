@@ -28,7 +28,7 @@ const (
 	CAStorageTrieNum       = 10
 	CAStorageInitSize      = 10000000
 	InitAccounts           = 10000000
-	AccountKeyCacheSize    = 200000
+	AccountKeyCacheSize    = 600000
 	LargeStorageTrieNum    = 2
 	MaxLargeStorageTrieNum = 20
 	MaxCATrieNum           = 20000
@@ -227,16 +227,21 @@ func makeAccountsV2(startIndex, size uint64) (addresses [][20]byte, accounts [][
 	return addresses, accounts
 }
 
-func genAccountTrieKey(totalSize, size uint64) (addresses []string) {
+func genAccountTrieKey(totalSize, size uint64) []string {
 	// Create a realistic account trie to hash
-	addresses = make([]string, size)
-
+	addressList := make([]string, size)
+	addresses := make([][20]byte, size)
 	for i := uint64(0); i < size; i++ {
-		num := rand.Intn(int(totalSize / 10))
+		num := rand.Intn(int(totalSize/5)) + MaxCATrieNum
 		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
-		addresses[i] = string(hash)
+		//		addresses[i] = string(hash)
+		copy(addresses[i][:], hash[:20])
 	}
-	return addresses
+	for i := 0; i < len(addresses); i++ {
+		initKey := string(crypto.Keccak256(addresses[i][:]))
+		addressList[i] = initKey
+	}
+	return addressList
 }
 
 func genOwnerHashKey(size int) (addresses []string) {
@@ -251,6 +256,18 @@ func genOwnerHashKey(size int) (addresses []string) {
 	return addresses
 }
 
+func genStorageTrieKeyV1(startIndex, size uint64) (addresses []string) {
+	// Create a realistic account trie to hash
+	addresses = make([]string, size)
+
+	for i := uint64(0); i < size; i++ {
+		num := startIndex + i
+		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
+		addresses[i] = string(hash)
+	}
+	return addresses
+}
+
 func genStorageTrieKey(ownerHash string, startIndex, size uint64) (addresses []string) {
 	// Create a realistic account trie to hash
 	addresses = make([]string, size)
@@ -259,7 +276,7 @@ func genStorageTrieKey(ownerHash string, startIndex, size uint64) (addresses []s
 		num := startIndex + i
 		//	hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
 		numbytes := fmt.Sprintf("%d", num)
-		numLen := len(numbytes)
+		numLen := len(ownerHash) - len(numbytes)
 		addresses[i] = ownerHash[:numLen] + numbytes
 	}
 	return addresses
