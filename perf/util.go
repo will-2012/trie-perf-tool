@@ -23,14 +23,15 @@ type CAKeyValue struct {
 }
 
 const (
-	CAStorageSize       = 100
-	CAStorageUpdateNum  = 100
-	CAStorageTrieNum    = 10
-	CAStorageInitSize   = 10000000
-	InitAccounts        = 10000000
-	AccountKeyCacheSize = 200000
-	LargeStorageTrieNum = 2
-	MaxCATrieNum        = 20000
+	CAStorageSize          = 100
+	CAStorageUpdateNum     = 100
+	CAStorageTrieNum       = 10
+	CAStorageInitSize      = 10000000
+	InitAccounts           = 10000000
+	AccountKeyCacheSize    = 200000
+	LargeStorageTrieNum    = 2
+	MaxLargeStorageTrieNum = 20
+	MaxCATrieNum           = 20000
 )
 
 type TreeConfig struct {
@@ -250,14 +251,16 @@ func genOwnerHashKey(size int) (addresses []string) {
 	return addresses
 }
 
-func genStorageTrieKey(startIndex, size uint64) (addresses []string) {
+func genStorageTrieKey(ownerHash string, startIndex, size uint64) (addresses []string) {
 	// Create a realistic account trie to hash
 	addresses = make([]string, size)
 
 	for i := uint64(0); i < size; i++ {
 		num := startIndex + i
-		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
-		addresses[i] = string(hash)
+		//	hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
+		numbytes := fmt.Sprintf("%d", num)
+		numLen := len(numbytes)
+		addresses[i] = ownerHash[:numLen] + numbytes
 	}
 	return addresses
 }
@@ -271,6 +274,15 @@ func randomFloat() float64 {
 func generateValue(minSize, maxSize uint64) []byte {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	size := minSize + uint64(rand.Intn(int(maxSize-minSize+1)))
+	b := make([]byte, size)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return b
+}
+
+func generateKey(size int64) []byte {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, size)
 	for i := range b {
 		b[i] = charset[rand.Intn(len(charset))]

@@ -91,7 +91,7 @@ func (s *StateVerifyer) Init(storageTrieNum int) {
 
 	ownerList := genOwnerHashKey(storageTrieNum)
 	for i := 0; i < len(ownerList); i++ {
-		keys := genStorageTrieKey(0, storageBatch)
+		keys := genStorageTrieKey(ownerList[i], 0, storageBatch)
 
 		vals := make([]string, 0, storageBatch)
 		for j := uint64(0); j < storageBatch; j++ {
