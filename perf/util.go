@@ -29,7 +29,7 @@ const (
 	CAStorageInitSize   = 10000000
 	InitAccounts        = 10000000
 	AccountKeyCacheSize = 200000
-	LargeStorageTrieNum = 1
+	LargeStorageTrieNum = 2
 	MaxCATrieNum        = 20000
 )
 
