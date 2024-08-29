@@ -774,11 +774,7 @@ func (d *DBRunner) InitSingleStorageTrie(
 }
 
 func (d *DBRunner) trySleep() {
-	if d.db.GetMPTEngine() == VERSADBEngine {
-		time.Sleep(500 * time.Millisecond)
-	} else {
-		time.Sleep(300 * time.Millisecond)
-	}
+	time.Sleep(500 * time.Millisecond)
 }
 
 func (d *DBRunner) isLargeStorageTrie(owner string) bool {
