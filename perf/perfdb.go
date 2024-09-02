@@ -340,7 +340,7 @@ func (d *DBRunner) InitSmallStorageTrie() []common.Hash {
 		StorageInitSize = d.perfConfig.StorageTrieSize / 50
 	}
 
-	for i := 31; i < int(CATrieNum-LargeStorageTrieNum); i++ {
+	for i := 0; i < int(CATrieNum-LargeStorageTrieNum); i++ {
 		//	ownerHash := string(crypto.Keccak256(CAAccount[i][:]))
 		ownerHash := d.storageOwnerList[i+MaxLargeStorageTrieNum]
 		d.smallStorageTrie[i] = ownerHash
