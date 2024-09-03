@@ -186,8 +186,8 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 			return
 		default:
 			// update the source test data cache every 10000 blocks
-			if d.blockHeight%10000 == 0 {
-				d.updateCache(d.perfConfig.StorageTrieNum, d.perfConfig.LargeTrieNum)
+			if d.blockHeight%10000 == 0 && d.blockHeight > 0 {
+				d.updateCache(d.perfConfig.LargeTrieNum, d.perfConfig.StorageTrieNum)
 			}
 
 			taskMap := NewDBTask()
@@ -216,20 +216,24 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				}
 			}
 
+			min_value_size := d.perfConfig.MinValueSize
+			max_value_size := d.perfConfig.MaxValueSize
+			fmt.Println("min value size", min_value_size, "max size", max_value_size)
 			// small storage trie write 3/5 kv of storage
-			var testStorageTrie []string
-			if len(d.smallStorageTrie) > 8 {
-				testStorageTrie = make([]string, 8)
+			var randomStorageTrieList []string
+			// random choose 29 small tries
+			if len(d.smallStorageTrie) > SmallTriesReadInBlock {
+				randomStorageTrieList = make([]string, SmallTriesReadInBlock)
 				perm := mathrand.Perm(len(d.smallStorageTrie))
-				for i := 0; i < 8; i++ {
-					testStorageTrie[i] = d.smallStorageTrie[perm[i]]
+				for i := 0; i < SmallTriesReadInBlock; i++ {
+					randomStorageTrieList[i] = d.smallStorageTrie[perm[i]]
 				}
 			} else {
-				testStorageTrie = d.smallStorageTrie
+				randomStorageTrieList = d.smallStorageTrie
 			}
 
-			storageUpdateNum := int(batchSize) / 5 * 3 / len(testStorageTrie)
-			for i := 0; i < len(testStorageTrie); i++ {
+			storageUpdateNum := int(batchSize) / 5 * 3 / len(randomStorageTrieList)
+			for i := 0; i < len(randomStorageTrieList); i++ {
 				keys := make([]string, 0, storageUpdateNum)
 				vals := make([]string, 0, storageUpdateNum)
 				//owner := d.smallStorageTrie[i]
@@ -239,9 +243,9 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 					// only cache 10000 for updating test
 					randomIndex := mathrand.Intn(len(v))
 					keys = append(keys, v[randomIndex])
-					vals = append(vals, string(generateValue(7, 16)))
+					vals = append(vals, string(generateValue(min_value_size, max_value_size)))
 				}
-				taskMap.SmallStorageTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
+				taskMap.SmallTrieTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
 			}
 
 			// large storage trie write 1/5 kv of storage
@@ -265,7 +269,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 				keys = append(keys, v[randomIndex])
 				vals = append(vals, string(value))
 			}
-			taskMap.LargeStorageTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
+			taskMap.LargeTrieTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
 			d.taskChan <- taskMap
 		}
 	}
@@ -510,7 +514,7 @@ func (d *DBRunner) UpdateDB(
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	smallTrieMaps := splitTrieTask(taskInfo.SmallStorageTask, threadNum-1)
+	smallTrieMaps := splitTrieTask(taskInfo.SmallTrieTask, threadNum-1)
 
 	for i := 0; i < threadNum-1; i++ {
 		wg.Add(1)
@@ -541,7 +545,7 @@ func (d *DBRunner) UpdateDB(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for owner, CAkeys := range taskInfo.LargeStorageTask {
+		for owner, CAkeys := range taskInfo.LargeTrieTask {
 			for i := 0; i < len(CAkeys.Keys); i++ {
 				startRead := time.Now()
 				value, err := d.db.GetStorage([]byte(owner), []byte(CAkeys.Keys[i]))
@@ -600,12 +604,20 @@ func (d *DBRunner) UpdateDB(
 	}
 
 	start = time.Now()
-
+	ratio := d.perfConfig.RwRatio
+	fmt.Printf("read and write ratio is %v \n", ratio)
 	// simulate upadte small Storage Trie
-	for key, value := range taskInfo.SmallStorageTask {
+	for key, value := range taskInfo.SmallTrieTask {
 		startPut := time.Now()
+		// Calculate the number of elements to keep based on the ratio
+		numElements := int(float64(len(value.Keys)) * ratio)
+
+		// Create new slices based on the calculated number of elements
+		newKeys := value.Keys[:numElements]
+		newVals := value.Vals[:numElements]
+
 		// add new storage
-		_, err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		_, err := d.db.UpdateStorage([]byte(key), newKeys, newVals)
 		if err != nil {
 			fmt.Println("update storage err", err.Error())
 		}
@@ -619,10 +631,17 @@ func (d *DBRunner) UpdateDB(
 	}
 
 	// simulate update large Storage Trie
-	for key, value := range taskInfo.LargeStorageTask {
+	for key, value := range taskInfo.LargeTrieTask {
+		// Calculate the number of elements to keep based on the ratio
+		numElements := int(float64(len(value.Keys)) * ratio)
+
+		// Create new slices based on the calculated number of elements
+		newKeys := value.Keys[:numElements]
+		newVals := value.Vals[:numElements]
+
 		startPut := time.Now()
 		// add new storage
-		_, err := d.db.UpdateStorage([]byte(key), value.Keys, value.Vals)
+		_, err := d.db.UpdateStorage([]byte(key), newKeys, newVals)
 		if err != nil {
 			fmt.Println("update storage err", err.Error())
 		}
@@ -670,14 +689,14 @@ func (d *DBRunner) UpdateDB(
 			rawdb.WriteAccountSnapshot(snapDB, insertKey, value)
 		}
 
-		for key, value := range taskInfo.SmallStorageTask {
+		for key, value := range taskInfo.SmallTrieTask {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {
 				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))
 			}
 		}
 
-		for key, value := range taskInfo.LargeStorageTask {
+		for key, value := range taskInfo.LargeTrieTask {
 			accHash := common.BytesToHash([]byte(key))
 			for i, k := range value.Keys {
 				rawdb.WriteStorageSnapshot(snapDB, accHash, hashData([]byte(k)), []byte(value.Vals[i]))

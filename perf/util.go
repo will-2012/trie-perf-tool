@@ -32,6 +32,7 @@ const (
 	LargeStorageTrieNum    = 2
 	MaxLargeStorageTrieNum = 20
 	MaxCATrieNum           = 20000
+	SmallTriesReadInBlock  = 29
 )
 
 type TreeConfig struct {
@@ -51,9 +52,9 @@ var InitFinishRoot = []byte("perf-init-root")
 type InitDBTask map[string]CAKeyValue
 
 type DBTask struct {
-	AccountTask      map[string][]byte
-	SmallStorageTask map[string]CAKeyValue
-	LargeStorageTask map[string]CAKeyValue
+	AccountTask   map[string][]byte
+	SmallTrieTask map[string]CAKeyValue
+	LargeTrieTask map[string]CAKeyValue
 }
 
 type VerifyTask struct {
@@ -63,9 +64,9 @@ type VerifyTask struct {
 
 func NewDBTask() DBTask {
 	return DBTask{
-		AccountTask:      make(map[string][]byte),
-		SmallStorageTask: make(map[string]CAKeyValue),
-		LargeStorageTask: make(map[string]CAKeyValue),
+		AccountTask:   make(map[string][]byte),
+		SmallTrieTask: make(map[string]CAKeyValue),
+		LargeTrieTask: make(map[string]CAKeyValue),
 	}
 }
 

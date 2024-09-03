@@ -33,6 +33,7 @@ type PerfConfig struct {
 	MinValueSize     uint64
 	MaxValueSize     uint64
 	DeleteRatio      float64
+	RwRatio          float64
 	MetricsAddr      string
 	MetricsPort      int
 	StorageTrieSize  uint64
@@ -207,14 +208,14 @@ func main() {
 				Name:        "min_value_size",
 				Aliases:     []string{"m"},
 				Usage:       "Minimum value size",
-				Value:       300,
+				Value:       7,
 				Destination: &config.MinValueSize,
 			},
 			&cli.Uint64Flag{
 				Name:        "max_value_size",
 				Aliases:     []string{"M"},
 				Usage:       "Maximum value size",
-				Value:       300,
+				Value:       16,
 				Destination: &config.MaxValueSize,
 			},
 			&cli.Float64Flag{
@@ -233,8 +234,15 @@ func main() {
 			&cli.BoolFlag{
 				Name:    "init_mode",
 				Aliases: []string{"im"},
-				Value:   true,
+				Value:   false,
 				Usage:   "init data mode for preparing the test data",
+			},
+			&cli.Float64Flag{
+				Name:        "rw_ratio",
+				Aliases:     []string{"rr"},
+				Usage:       "write and read ratio",
+				Value:       0.45,
+				Destination: &config.RwRatio,
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -369,6 +377,7 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 	maxValueSize := c.Uint64("max_value_size")
 	minValueSize := c.Uint64("min_value_size")
 	deleteRatio := c.Float64("delete_ratio")
+	rwRatio := c.Float64("rw_ratio")
 	trieSize := c.Uint64("triesize")
 	smallTrieSize := c.Uint64("smallstorage")
 	trieNum := c.Uint64("trienum")
@@ -385,6 +394,7 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 		MinValueSize:     minValueSize,
 		MaxValueSize:     maxValueSize,
 		DeleteRatio:      deleteRatio,
+		RwRatio:          rwRatio,
 		StorageTrieSize:  trieSize,
 		SmallStorageSize: smallTrieSize,
 		AccountsInitSize: accounts,
