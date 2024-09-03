@@ -38,9 +38,12 @@ type PerfConfig struct {
 	StorageTrieSize  uint64
 	SmallStorageSize uint64
 	StorageTrieNum   uint64
+	LargeTrieNum     uint64
 	AccountsInitSize uint64
 	AccountsBlocks   uint64
 	TrieBlocks       uint64
+	IsInitMode       bool
+	SleepTime        uint64
 }
 
 const version = "1.0.0"
@@ -143,6 +146,13 @@ func main() {
 				Destination: &config.StorageTrieSize,
 			},
 			&cli.Uint64Flag{
+				Name:        "sleeptime",
+				Aliases:     []string{"stime"},
+				Usage:       "sleep time of block",
+				Value:       500,
+				Destination: &config.SleepTime,
+			},
+			&cli.Uint64Flag{
 				Name:        "smallstorage",
 				Aliases:     []string{"ss"},
 				Usage:       "small storage trie size",
@@ -156,6 +166,14 @@ func main() {
 				Value:       10,
 				Destination: &config.StorageTrieNum,
 			},
+			&cli.Uint64Flag{
+				Name:        "largetries",
+				Aliases:     []string{"lt"},
+				Usage:       "large storage trie num",
+				Value:       3,
+				Destination: &config.LargeTrieNum,
+			},
+
 			&cli.Uint64Flag{
 				Name:        "accounts",
 				Aliases:     []string{"a"},
@@ -211,6 +229,12 @@ func main() {
 				Aliases: []string{"rt"},
 				Value:   100 * time.Second,
 				Usage:   "Duration to run the benchmark",
+			},
+			&cli.BoolFlag{
+				Name:    "init_mode",
+				Aliases: []string{"im"},
+				Value:   true,
+				Usage:   "init data mode for preparing the test data",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -348,9 +372,12 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 	trieSize := c.Uint64("triesize")
 	smallTrieSize := c.Uint64("smallstorage")
 	trieNum := c.Uint64("trienum")
+	largeTrieNum := c.Uint64("largetries")
 	accounts := c.Uint64("accounts")
 	accountBlock := c.Uint64("account_block")
 	trieBlock := c.Uint64("trie_block")
+	initmodeFlag := c.Bool("init_mode")
+	sleepTime := c.Uint64("sleeptime")
 	return PerfConfig{
 		BatchSize:        batchSize,
 		NumJobs:          threadNum,
@@ -364,5 +391,8 @@ func parsePerfConfig(c *cli.Context) PerfConfig {
 		AccountsBlocks:   accountBlock,
 		TrieBlocks:       trieBlock,
 		StorageTrieNum:   trieNum,
+		LargeTrieNum:     largeTrieNum,
+		IsInitMode:       initmodeFlag,
+		SleepTime:        sleepTime,
 	}
 }

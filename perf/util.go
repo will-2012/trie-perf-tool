@@ -227,14 +227,13 @@ func makeAccountsV2(startIndex, size uint64) (addresses [][20]byte, accounts [][
 	return addresses, accounts
 }
 
-func genAccountTrieKey(totalSize, size uint64) []string {
+func genAccountKey(totalSize, size uint64) []string {
 	// Create a realistic account trie to hash
 	addressList := make([]string, size)
 	addresses := make([][20]byte, size)
 	for i := uint64(0); i < size; i++ {
-		num := rand.Intn(int(totalSize/5)) + MaxCATrieNum
+		num := rand.Intn(int(totalSize)) + MaxCATrieNum
 		hash := crypto.Keccak256([]byte(fmt.Sprintf("%d", num)))
-		//		addresses[i] = string(hash)
 		copy(addresses[i][:], hash[:20])
 	}
 	for i := 0; i < len(addresses); i++ {
@@ -308,7 +307,7 @@ func generateKey(size int64) []byte {
 }
 
 type InsertedKeySet struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	items   []string
 	maxSize int
 	index   int
@@ -333,8 +332,8 @@ func (s *InsertedKeySet) Add(item string) {
 }
 
 func (s *InsertedKeySet) RandomItem() (string, bool) {
-	//s.mu.Lock()
-	//defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if len(s.items) == 0 {
 		return "", false
 	}
@@ -342,27 +341,12 @@ func (s *InsertedKeySet) RandomItem() (string, bool) {
 	return s.items[randomIndex], true
 }
 
-// GetNRandomSets returns n slices, each containing m unique keys. No key is repeated across slices.
-func (s *InsertedKeySet) GetNRandomSets(n int, m int) ([][]string, error) {
+func (s *InsertedKeySet) clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	totalItems := len(s.items)
-	if n*m > totalItems {
-		return nil, fmt.Errorf("not enough items in the set to generate %d sets of %d items", n, m)
-	}
-
-	result := make([][]string, n)
-	allIndices := rand.Perm(totalItems) // Generate a random permutation of indices
-	for i := 0; i < n; i++ {
-		set := make([]string, m)
-		for j := 0; j < m; j++ {
-			set[j] = s.items[allIndices[i*m+j]]
-		}
-		result[i] = set
-	}
-
-	return result, nil
+	// Reset items slice and other relevant state
+	s.items = make([]string, 0, s.maxSize)
+	s.index = 0
 }
 
 func generateRandomBytes(length int) []byte {
