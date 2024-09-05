@@ -514,33 +514,36 @@ func (d *DBRunner) UpdateDB(
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	smallTrieMaps := splitTrieTask(taskInfo.SmallTrieTask, threadNum-1)
+	/*
+		smallTrieMaps := splitTrieTask(taskInfo.SmallTrieTask, threadNum-1)
 
-	for i := 0; i < threadNum-1; i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			for owner, CAKeys := range smallTrieMaps[index] {
-				for j := 0; j < len(CAKeys.Keys); j++ {
-					startRead := time.Now()
-					value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
-					if d.db.GetMPTEngine() == VERSADBEngine {
-						VersaDBAccGetLatency.Update(time.Since(startRead))
-					} else {
-						StateDBAccGetLatency.Update(time.Since(startRead))
-					}
-					d.stat.IncGet(1)
-					if err != nil || value == nil {
-						if err != nil {
-							fmt.Println("fail to get small trie key", err.Error())
+		for i := 0; i < threadNum-1; i++ {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				for owner, CAKeys := range smallTrieMaps[index] {
+					for j := 0; j < len(CAKeys.Keys); j++ {
+						startRead := time.Now()
+						value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
+						if d.db.GetMPTEngine() == VERSADBEngine {
+							VersaDBAccGetLatency.Update(time.Since(startRead))
+						} else {
+							StateDBAccGetLatency.Update(time.Since(startRead))
 						}
-						d.stat.IncGetNotExist(1)
+						d.stat.IncGet(1)
+						if err != nil || value == nil {
+							if err != nil {
+								fmt.Println("fail to get small trie key", err.Error())
+							}
+							d.stat.IncGetNotExist(1)
+						}
 					}
 				}
-			}
-		}(i)
-	}
+			}(i)
+		}
 
+	
+	*/
 	// use one thread to read a random large storage trie
 	wg.Add(1)
 	go func() {
@@ -605,19 +608,18 @@ func (d *DBRunner) UpdateDB(
 
 	start = time.Now()
 	ratio := d.perfConfig.RwRatio
-	fmt.Printf("read and write ratio is %v \n", ratio)
-	// simulate upadte small Storage Trie
+
+	// simulate update small Storage Trie
 	for key, value := range taskInfo.SmallTrieTask {
 		startPut := time.Now()
 		// Calculate the number of elements to keep based on the ratio
-		numElements := int(float64(len(value.Keys)) * ratio)
+		updateKeyNum := int(float64(len(value.Keys)) * ratio)
 
-		// Create new slices based on the calculated number of elements
-		newKeys := value.Keys[:numElements]
-		newVals := value.Vals[:numElements]
+		Keys := value.Keys[:updateKeyNum]
+		Vals := value.Vals[:updateKeyNum]
 
 		// add new storage
-		_, err := d.db.UpdateStorage([]byte(key), newKeys, newVals)
+		_, err := d.db.UpdateStorage([]byte(key), Keys, Vals)
 		if err != nil {
 			fmt.Println("update storage err", err.Error())
 		}
@@ -633,11 +635,11 @@ func (d *DBRunner) UpdateDB(
 	// simulate update large Storage Trie
 	for key, value := range taskInfo.LargeTrieTask {
 		// Calculate the number of elements to keep based on the ratio
-		numElements := int(float64(len(value.Keys)) * ratio)
+		updateKeyNum := int(float64(len(value.Keys)) * ratio)
 
 		// Create new slices based on the calculated number of elements
-		newKeys := value.Keys[:numElements]
-		newVals := value.Vals[:numElements]
+		newKeys := value.Keys[:updateKeyNum]
+		newVals := value.Vals[:updateKeyNum]
 
 		startPut := time.Now()
 		// add new storage
