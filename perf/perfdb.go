@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	mathrand "math/rand"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -84,8 +83,8 @@ func (d *DBRunner) Run(ctx context.Context) {
 	largeTrieNum := int(d.perfConfig.LargeTrieNum)
 
 	if d.perfConfig.IsInitMode {
-		debug.SetGCPercent(80)
-		debug.SetMemoryLimit(48 * 1024 * 1024 * 1024)
+		//	debug.SetGCPercent(80)
+		//	debug.SetMemoryLimit(48 * 1024 * 1024 * 1024)
 
 		fmt.Printf("init account in %d blocks , account num %d \n", blocks, d.perfConfig.AccountsInitSize)
 		diskVersion := d.db.GetVersion()
@@ -154,11 +153,14 @@ func (d *DBRunner) updateCache(largeTrieNum, totalTrieNum uint64) {
 		d.largeStorageTrie[i] = owner
 		largeStorageInitSize := d.perfConfig.StorageTrieSize
 		randomIndex := mathrand.Intn(int(d.perfConfig.StorageTrieSize / 2))
-		if i <= 1 {
-			d.largeStorageCache[owner] = genStorageTrieKeyV1(uint64(randomIndex), largeStorageInitSize/500)
-		} else {
-			d.storageCache[owner] = genStorageTrieKey(owner, uint64(randomIndex), largeStorageInitSize/500)
-		}
+		/*
+			if i <= 1 {
+				d.largeStorageCache[owner] = genStorageTrieKeyV1(uint64(randomIndex), largeStorageInitSize/500)
+			} else {
+				d.storageCache[owner] = genStorageTrieKey(owner, uint64(randomIndex), largeStorageInitSize/500)
+			}
+		*/
+		d.largeStorageCache[owner] = genStorageTrieKey(owner, uint64(randomIndex), largeStorageInitSize/500)
 		fmt.Println("load large tree owner hash", common.BytesToHash([]byte(owner)))
 	}
 
@@ -218,8 +220,6 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 
 			min_value_size := d.perfConfig.MinValueSize
 			max_value_size := d.perfConfig.MaxValueSize
-			fmt.Println("min value size", min_value_size, "max size", max_value_size,
-				"random len:", len(generateValue(min_value_size, max_value_size)))
 
 			// small storage trie write 3/5 kv of storage
 			var randomStorageTrieList []string
@@ -245,7 +245,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 					// only cache 10000 for updating test
 					randomIndex := mathrand.Intn(len(v))
 					keys = append(keys, v[randomIndex])
-					vals = append(vals, string(generateValue(min_value_size, max_value_size)))
+					vals = append(vals, string(generateValueV2(min_value_size, max_value_size)))
 				}
 				taskMap.SmallTrieTask[owner] = CAKeyValue{Keys: keys, Vals: vals}
 			}
@@ -267,7 +267,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 			for j := 0; j < largeStorageUpdateNum; j++ {
 				// only cache 10000 for updating test
 				randomIndex := mathrand.Intn(len(v))
-				value := generateValue(min_value_size, max_value_size)
+				value := generateValueV2(min_value_size, max_value_size)
 				keys = append(keys, v[randomIndex])
 				vals = append(vals, string(value))
 			}
@@ -290,12 +290,12 @@ func (d *DBRunner) InitLargeStorageTrie(largeTrieIndex int) {
 	fmt.Printf("init large tree in %d blocks , trie size %d \n", blocks, StorageInitSize)
 	storageBatch := StorageInitSize / blocks
 	for i := uint64(0); i < d.perfConfig.TrieBlocks; i++ {
-		if i%500 == 0 {
+		if i%100 == 0 {
 			fmt.Printf("finish init the  %d block of large trie \n", i)
 		}
 		vals := make([]string, 0, storageBatch)
 		for j := uint64(0); j < storageBatch; j++ {
-			value := generateValue(7, 16)
+			value := generateValueV2(d.perfConfig.MinValueSize, d.perfConfig.MaxValueSize)
 			//	keys = append(keys, string(randomStr))
 			vals = append(vals, string(value))
 		}
@@ -318,7 +318,7 @@ func (d *DBRunner) InitLargeStorageTries() {
 	largeTrieNum := int(d.perfConfig.LargeTrieNum)
 	for i := 0; i < largeTrieNum; i++ {
 		d.InitLargeStorageTrie(i)
-		fmt.Printf("init the  %d large trie success \n", i)
+		fmt.Printf("init the  %d large trie success \n", i+1)
 		for j := uint64(0); j < d.perfConfig.AccountsBlocks/50; j++ {
 			d.RunEmptyBlock(j)
 		}
@@ -331,14 +331,19 @@ func (d *DBRunner) InitSmallStorageTrie() []common.Hash {
 	initTrieNum := 0
 	var StorageInitSize uint64
 	// init small tree by the config trie size
-	if d.perfConfig.StorageTrieSize > 10000000 {
-		StorageInitSize = d.perfConfig.StorageTrieSize / 50
+	if d.perfConfig.SmallStorageSize > 0 {
+		StorageInitSize = d.perfConfig.SmallStorageSize
 	} else {
-		StorageInitSize = d.perfConfig.StorageTrieSize / 5
+		if d.perfConfig.StorageTrieSize > 10000000 {
+			StorageInitSize = d.perfConfig.StorageTrieSize / 50
+		} else {
+			StorageInitSize = d.perfConfig.StorageTrieSize / 5
+		}
 	}
 
-	for i := 0; i < int(CATrieNum-LargeStorageTrieNum); i++ {
+	for i := 0; i < int(CATrieNum-d.perfConfig.LargeTrieNum); i++ {
 		ownerHash := d.storageOwnerList[i+MaxLargeStorageTrieNum]
+		fmt.Println("generate small trie, owner:", common.BytesToHash([]byte(ownerHash)))
 		d.smallStorageTrie[i] = ownerHash
 		d.owners[i+MaxLargeStorageTrieNum] = common.BytesToHash([]byte(ownerHash))
 		smallTrees[i] = common.BytesToHash([]byte(ownerHash))
@@ -348,7 +353,7 @@ func (d *DBRunner) InitSmallStorageTrie() []common.Hash {
 		for t := uint64(0); t < blocks; t++ {
 			vals := make([]string, 0, storageBatch)
 			for j := uint64(0); j < storageBatch; j++ {
-				value := generateValue(7, 16)
+				value := generateValueV2(d.perfConfig.MinValueSize, d.perfConfig.MaxValueSize)
 				vals = append(vals, string(value))
 			}
 			keys := genStorageTrieKey(ownerHash, t*storageBatch, storageBatch)
@@ -358,9 +363,6 @@ func (d *DBRunner) InitSmallStorageTrie() []common.Hash {
 			} else {
 				d.InitSingleStorageTrie(ownerHash, CAKeyValue{
 					Keys: keys, Vals: vals}, false)
-			}
-			if t == 0 {
-				fmt.Println("key size is:", len([]byte(keys[0])))
 			}
 		}
 		d.smallStorageTrieCache.Add(ownerHash)
@@ -516,36 +518,33 @@ func (d *DBRunner) UpdateDB(
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	/*
-		smallTrieMaps := splitTrieTask(taskInfo.SmallTrieTask, threadNum-1)
+	smallTrieMaps := splitTrieTask(taskInfo.SmallTrieTask, threadNum-1)
 
-		for i := 0; i < threadNum-1; i++ {
-			wg.Add(1)
-			go func(index int) {
-				defer wg.Done()
-				for owner, CAKeys := range smallTrieMaps[index] {
-					for j := 0; j < len(CAKeys.Keys); j++ {
-						startRead := time.Now()
-						value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
-						if d.db.GetMPTEngine() == VERSADBEngine {
-							VersaDBAccGetLatency.Update(time.Since(startRead))
-						} else {
-							StateDBAccGetLatency.Update(time.Since(startRead))
+	for i := 0; i < threadNum-1; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			for owner, CAKeys := range smallTrieMaps[index] {
+				for j := 0; j < len(CAKeys.Keys); j++ {
+					startRead := time.Now()
+					value, err := d.db.GetStorage([]byte(owner), []byte(CAKeys.Keys[j]))
+					if d.db.GetMPTEngine() == VERSADBEngine {
+						VersaDBAccGetLatency.Update(time.Since(startRead))
+					} else {
+						StateDBAccGetLatency.Update(time.Since(startRead))
+					}
+					d.stat.IncGet(1)
+					if err != nil || value == nil {
+						if err != nil {
+							fmt.Println("fail to get small trie key", err.Error())
 						}
-						d.stat.IncGet(1)
-						if err != nil || value == nil {
-							if err != nil {
-								fmt.Println("fail to get small trie key", err.Error())
-							}
-							d.stat.IncGetNotExist(1)
-						}
+						d.stat.IncGetNotExist(1)
 					}
 				}
-			}(i)
-		}
+			}
+		}(i)
+	}
 
-
-	*/
 	// use one thread to read a random large storage trie
 	wg.Add(1)
 	go func() {
@@ -572,7 +571,6 @@ func (d *DBRunner) UpdateDB(
 
 	wg.Wait()
 
-	fmt.Println("thread num", threadNum)
 	accountMaps := splitAccountTask(taskInfo.AccountTask, threadNum)
 	//  read 1/5 kv of account
 	for i := 0; i < threadNum; i++ {
