@@ -468,6 +468,7 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
 		startPut := time.Now()
 		err := r.db.AddAccount(initKey, accounts[i])
+		fmt.Println("add account len:", len(accounts[i]))
 		if err != nil {
 			fmt.Println("init account err", err)
 		}
