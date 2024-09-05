@@ -296,6 +296,33 @@ func generateValue(minSize, maxSize uint64) []byte {
 	return b
 }
 
+func generateValueV2(minSize, maxSize uint64) []byte {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	// We want the average length to be around 13.5, so we need to adjust the size generation.
+	// Using a custom weighted distribution to achieve this:
+	size := customRandomSize(minSize, maxSize)
+	b := make([]byte, size)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return b
+}
+
+func customRandomSize(minSize, maxSize uint64) uint64 {
+	// Example of using triangular distribution centered around 13.5
+	avgSize := 13.5
+	randomFactor := rand.Float64()
+
+	// Use a weighted average with bias towards the center
+	if randomFactor < 0.5 {
+		// Generate values between minSize and avgSize (bias towards the middle)
+		return minSize + uint64(rand.Float64()*(avgSize-float64(minSize)))
+	} else {
+		// Generate values between avgSize and maxSize (bias towards the middle)
+		return uint64(avgSize) + uint64(rand.Float64()*(float64(maxSize)-avgSize))
+	}
+}
+
 func generateKey(size int64) []byte {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, size)

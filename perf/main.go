@@ -208,14 +208,14 @@ func main() {
 				Name:        "min_value_size",
 				Aliases:     []string{"m"},
 				Usage:       "Minimum value size",
-				Value:       7,
+				Value:       2,
 				Destination: &config.MinValueSize,
 			},
 			&cli.Uint64Flag{
 				Name:        "max_value_size",
 				Aliases:     []string{"M"},
 				Usage:       "Maximum value size",
-				Value:       16,
+				Value:       32,
 				Destination: &config.MaxValueSize,
 			},
 			&cli.Float64Flag{

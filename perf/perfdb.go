@@ -218,7 +218,9 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 
 			min_value_size := d.perfConfig.MinValueSize
 			max_value_size := d.perfConfig.MaxValueSize
-			fmt.Println("min value size", min_value_size, "max size", max_value_size)
+			fmt.Println("min value size", min_value_size, "max size", max_value_size,
+				"random len:", len(generateValue(min_value_size, max_value_size)))
+
 			// small storage trie write 3/5 kv of storage
 			var randomStorageTrieList []string
 			// random choose 29 small tries
@@ -468,7 +470,6 @@ func (r *DBRunner) InitAccount(blockNum, startIndex, size uint64) {
 		initKey := string(crypto.Keccak256(addresses[i][:]))
 		startPut := time.Now()
 		err := r.db.AddAccount(initKey, accounts[i])
-		fmt.Println("add account len:", len(accounts[i]))
 		if err != nil {
 			fmt.Println("init account err", err)
 		}
