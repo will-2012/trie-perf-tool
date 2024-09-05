@@ -218,7 +218,6 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 
 			min_value_size := d.perfConfig.MinValueSize
 			max_value_size := d.perfConfig.MaxValueSize
-			fmt.Println("min value size", min_value_size, "max size", max_value_size)
 			// small storage trie write 3/5 kv of storage
 			var randomStorageTrieList []string
 			// random choose 29 small tries
@@ -265,7 +264,7 @@ func (d *DBRunner) generateRunTasks(ctx context.Context, batchSize uint64) {
 			for j := 0; j < largeStorageUpdateNum; j++ {
 				// only cache 10000 for updating test
 				randomIndex := mathrand.Intn(len(v))
-				value := generateValue(7, 16)
+				value := generateValue(min_value_size, max_value_size)
 				keys = append(keys, v[randomIndex])
 				vals = append(vals, string(value))
 			}
@@ -542,7 +541,7 @@ func (d *DBRunner) UpdateDB(
 			}(i)
 		}
 
-	
+
 	*/
 	// use one thread to read a random large storage trie
 	wg.Add(1)
@@ -570,6 +569,7 @@ func (d *DBRunner) UpdateDB(
 
 	wg.Wait()
 
+	fmt.Println("thread num", threadNum)
 	accountMaps := splitAccountTask(taskInfo.AccountTask, threadNum)
 	//  read 1/5 kv of account
 	for i := 0; i < threadNum; i++ {
