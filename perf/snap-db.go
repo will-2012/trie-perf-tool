@@ -143,8 +143,9 @@ func (v *StateDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 	if err != nil {
 		return err
 	}
+
 	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
-		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+		Root: stRoot, CodeHash: generateCodeHash(owner).Bytes()}
 
 	val, _ := rlp.EncodeToBytes(acc)
 	v.AddAccount(string(owner), val)
@@ -216,12 +217,6 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 		s.trieCacheLock.Unlock()
 	}
 
-	/*
-		for i, k := range keys {
-			stTrie.MustUpdate([]byte(k), []byte(vals[i]))
-		}
-	*/
-
 	// update batch storage trie
 	for i := 0; i < len(keys) && i < len(vals); i++ {
 		stTrie.MustUpdate([]byte(keys[i]), []byte(vals[i]))
@@ -240,7 +235,7 @@ func (s *StateDBRunner) UpdateStorage(owner []byte, keys []string, vals []string
 	s.lock.Unlock()
 	// update the CA account on root tree
 	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
-		Root: root, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+		Root: root, CodeHash: generateCodeHash(owner).Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
 		panic("encode CA account err" + err.Error())

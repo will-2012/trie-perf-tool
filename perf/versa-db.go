@@ -91,7 +91,7 @@ func (v *VersaDBRunner) AddStorage(owner []byte, keys []string, vals []string) e
 	stRoot := v.makeStorageTrie(ownerHash, keys, vals)
 	//random := rand.New(rand.NewSource(0))
 	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
-		Root: stRoot, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+		Root: stRoot, CodeHash: generateCodeHash(owner).Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
 		fmt.Println("encode acc err", err.Error())
@@ -174,7 +174,7 @@ func (v *VersaDBRunner) UpdateStorage(owner []byte, keys []string, values []stri
 	}
 
 	acc := &ethTypes.StateAccount{Nonce: uint64(2), Balance: uint256.NewInt(3),
-		Root: hash, CodeHash: ethTypes.EmptyCodeHash.Bytes()}
+		Root: hash, CodeHash: generateCodeHash(owner).Bytes()}
 	val, err := rlp.EncodeToBytes(acc)
 	if err != nil {
 		fmt.Println("encode acc err", err.Error())
