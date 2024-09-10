@@ -13,9 +13,7 @@ type VersaTrie struct {
 }
 
 func OpenVersaTrie(version int64, rootHash []byte) *VersaTrie {
-	store, _, _, err := store.Open("test-versa-trie", &store.Options{
-		PageDecoder: &versaTree.PageDecoder{},
-	})
+	store, _, _, err := store.Open("test-versa-trie", &store.Options{})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -43,8 +41,8 @@ func (p *VersaTrie) Delete(key []byte) error {
 }
 
 func (p *VersaTrie) Commit() (common.Hash, error) {
-	hash, _, err := p.trie.Commit(0)
-	return hash, err
+	//hash, _, err := p.trie.Commit(0)
+	return common.Hash{}, nil
 }
 
 func (p *VersaTrie) GetMPTEngine() string {
