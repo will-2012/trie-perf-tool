@@ -18,8 +18,8 @@ github.com/bits-and-blooms/bitset v1.11.0 h1:RMyy2mBBShArUAhfVRZJ2xyBO58KCBCtZFS
 github.com/bits-and-blooms/bitset v1.11.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
 github.com/bnb-chain/bsc v1.4.12 h1:OO776DF4YOh1KLQOM1wc3PhoKT66fN965GBqggVdr8w=
 github.com/bnb-chain/bsc v1.4.12/go.mod h1:qZNUkIaHryRWvDjQhqzHITU5ROnEHil9VOPFXQoGuzo=
-github.com/bnb-chain/versioned-state-database v0.0.0-20240912021040-d783972d02ea h1:3V3kaPhJHfmBFLjHAj4owxImr18izXMU5+Nxjvdiy5M=
-github.com/bnb-chain/versioned-state-database v0.0.0-20240912021040-d783972d02ea/go.mod h1:YZHKwmDvRJPstH02vSOg/KlxwQ4GslkfWcoZBTPwdmM=
+github.com/bnb-chain/versioned-state-database v0.0.0-20240911124722-1d15ba00be60 h1:yt0UfvQ68sg5ERON2/DXl5JEeGxQUm01bUW9346SCos=
+github.com/bnb-chain/versioned-state-database v0.0.0-20240911124722-1d15ba00be60/go.mod h1:YZHKwmDvRJPstH02vSOg/KlxwQ4GslkfWcoZBTPwdmM=
 github.com/btcsuite/btcd/btcec/v2 v2.3.2 h1:5n0X6hX0Zk+6omWcihdYvdAlGf2DfasC0GMf7DClJ3U=
 github.com/btcsuite/btcd/btcec/v2 v2.3.2/go.mod h1:zYzJ8etWJQIv1Ogk7OzpWjowwOdXY1W/17j2MW85J04=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=
