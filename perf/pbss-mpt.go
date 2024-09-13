@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,14 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
 )
 
-type PbssTrie struct {
+type PbssRawTrie struct {
 	trie  *bsctrie.Trie
 	db    *triedb.Database
 	nodes *trienode.MergedNodeSet
 }
 
-func (p *PbssTrie) OpenDB(dataDir string, root common.Hash) *PbssTrie {
-	triedb, _ := MakePBSSTrieDatabase(dataDir)
+func OpenPbssDB(dataDir string, root common.Hash) *PbssRawTrie {
+	triedb, _, _ := MakePBSSTrieDatabase(dataDir)
 
 	t, err := bsctrie.New(bsctrie.StateTrieID(root), triedb)
 	if err != nil {
@@ -32,53 +31,57 @@ func (p *PbssTrie) OpenDB(dataDir string, root common.Hash) *PbssTrie {
 	if nodeSet == nil {
 		panic("node set empty")
 	}
-	return &PbssTrie{
+	return &PbssRawTrie{
 		trie:  t,
 		db:    triedb,
 		nodes: nodeSet,
 	}
 }
 
-func (p *PbssTrie) Commit() (common.Hash, error) {
+func (p *PbssRawTrie) Commit() (common.Hash, error) {
 	root, nodes, err := p.trie.Commit(true)
 	if err != nil {
-		fmt.Println("commit err", err)
 		return types.EmptyRootHash, err
 	}
-
 	if nodes != nil {
-		if err = p.nodes.Merge(nodes); err != nil {
+		if err := p.nodes.Merge(nodes); err != nil {
 			return types.EmptyRootHash, err
 		}
 	}
 
 	p.db.Update(root, types.EmptyRootHash, 0, p.nodes, nil)
+	//	p.db.Commit
 	p.trie, _ = bsctrie.New(bsctrie.TrieID(root), p.db)
 
-	return root, err
+	return root, nil
 }
 
-func (p *PbssTrie) Hash() common.Hash {
+func (p *PbssRawTrie) Hash() common.Hash {
 	return p.trie.Hash()
 }
 
-func (p *PbssTrie) Put(key []byte, value []byte) error {
-	if len(value) == 0 {
-		panic("should not insert empty value")
-	}
+func (p *PbssRawTrie) Put(key []byte, value []byte) error {
 	return p.trie.Update(key, value)
 }
 
-func (p *PbssTrie) Get(key []byte) ([]byte, error) {
+func (p *PbssRawTrie) Get(key []byte) ([]byte, error) {
 	return p.trie.Get(key)
 }
 
-func (p *PbssTrie) Delete(key []byte) error {
+func (p *PbssRawTrie) Delete(key []byte) error {
 	return p.trie.Delete(key)
 }
 
+func (p *PbssRawTrie) GetFlattenDB() ethdb.KeyValueStore {
+	return nil
+}
+
+func (p *PbssRawTrie) GetMPTEngine() string {
+	return PbssRawTrieEngine
+}
+
 func createChainDataBase(datadir string) (ethdb.Database, error) {
-	db, err := OpenDatabaseWithFreezer("geth", 10000, 10000, "", "chaindata",
+	db, err := OpenDatabaseWithFreezer("chaindata", 1000, 20000, "", "",
 		datadir)
 	if err != nil {
 		return nil, err
@@ -87,24 +90,26 @@ func createChainDataBase(datadir string) (ethdb.Database, error) {
 }
 
 // MakePBSSTrieDatabase constructs a trie database based on the configured scheme.
-func MakePBSSTrieDatabase(datadir string) (*triedb.Database, error) {
+func MakePBSSTrieDatabase(datadir string) (*triedb.Database, ethdb.Database, error) {
 	diskdb, err := createChainDataBase(datadir)
 	if err != nil {
-		return nil, err
+		return nil, diskdb, err
 	}
 	config := &triedb.Config{
 		PathDB: pathdb.Defaults,
 	}
 
 	//config.PathDB.JournalFilePath = fmt.Sprintf("%s/%s", stack.ResolvePath("chaindata"), eth.JournalFileName)
-	return triedb.NewDatabase(diskdb, config), nil
+	return triedb.NewDatabase(diskdb, config), diskdb, nil
 }
 
 func OpenDatabaseWithFreezer(name string, cache, handles int, ancient, namespace, datadir string) (ethdb.Database, error) {
+	data := filepath.Join(datadir, "geth")
+	directory := filepath.Join(data, name)
 	db, err := rawdb.Open(rawdb.OpenOptions{
 		Type:              "pebble",
-		Directory:         filepath.Join(datadir, name),
-		AncientsDirectory: filepath.Join(filepath.Join(datadir, name), "ancient"),
+		Directory:         directory,
+		AncientsDirectory: filepath.Join(directory, "ancient"),
 		Namespace:         namespace,
 		Cache:             cache,
 		Handles:           handles,
